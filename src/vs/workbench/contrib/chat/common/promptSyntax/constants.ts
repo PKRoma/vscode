@@ -9,7 +9,8 @@ import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, PROMPT_FILE_EXTENSION } from '../
 /**
  * Documentation link for the reusable prompts feature.
  */
-export const DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
+export const INSTRUCTIONS_DOCUMENTATION_URL = PROMPT_DOCUMENTATION_URL; // TODO: instructions specific link
 
 /**
  * Supported reusable prompt file patterns.
