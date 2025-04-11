@@ -45,9 +45,12 @@ export function getPromptFileType(fileUri: URI): 'instructions' | 'prompt' | und
 	const filename = basename(fileUri);
 	if (filename.endsWith(PROMPT_FILE_EXTENSION)) {
 		return 'prompt';
-	} else if (filename.endsWith(INSTRUCTION_FILE_EXTENSION) || filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
+	}
+	
+	if (filename.endsWith(INSTRUCTION_FILE_EXTENSION) || filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
 		return 'instructions';
 	}
+
 	return undefined;
 }
 
