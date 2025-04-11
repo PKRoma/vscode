@@ -75,9 +75,13 @@ export const getCleanPromptName = (
 	const filename = basename(fileUri);
 	if (filename.endsWith(PROMPT_FILE_EXTENSION)) {
 		return filename.slice(0, -PROMPT_FILE_EXTENSION.length);
-	} else if (filename.endsWith(INSTRUCTION_FILE_EXTENSION)) {
+	}
+	
+	if (filename.endsWith(INSTRUCTION_FILE_EXTENSION)) {
 		return filename.slice(0, -INSTRUCTION_FILE_EXTENSION.length);
-	} else if (filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
+	}
+	
+	if (filename === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
 		return filename.slice(0, -3);
 	}
 	throw new Error(`File ${fileUri} is not a prompt file`);
