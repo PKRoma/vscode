@@ -236,6 +236,7 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsWorkbenchService private readonly sessionsWorkbenchService: ISessionsWorkbenchService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -246,10 +247,21 @@ export class ChangesViewPane extends ViewPane {
 		this.viewModeContextKey = changesViewModeContextKey.bindTo(contextKeyService);
 		this.viewModeContextKey.set(initialMode);
 
-		// Track active session from sessions management service
+		// Track active session from sessions management service.
+		// Also reacts to dashboard-selected sessions so the changes
+		// panel updates without opening the full chat view.
 		this.activeSession = derivedOpts<IActiveSession | undefined>({
 			equalsFn: (a, b) => isEqual(a?.resource, b?.resource),
 		}, reader => {
+			// Dashboard selection takes priority when set
+			const selectedResource = this.sessionManagementService.selectedSessionResource.read(reader);
+			if (selectedResource) {
+				return {
+					resource: selectedResource,
+					sessionType: getChatSessionType(selectedResource),
+				};
+			}
+
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			if (!activeSession?.resource) {
 				return undefined;

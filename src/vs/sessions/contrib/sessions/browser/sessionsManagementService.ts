@@ -57,9 +57,23 @@ export interface ISessionsManagementService {
 	readonly activeSession: IObservable<IActiveSessionItem | undefined>;
 
 	/**
+	 * Observable for the session resource currently "selected" in the dashboard.
+	 * The changes panel should react to this even when no chat widget is focused.
+	 * This is cleared when a session is fully opened or a new session is started.
+	 */
+	readonly selectedSessionResource: IObservable<URI | undefined>;
+
+	/**
 	 * Returns the currently active session, if any.
 	 */
 	getActiveSession(): IActiveSessionItem | undefined;
+
+	/**
+	 * Select a session on the dashboard without opening it in the chat widget.
+	 * This drives the changes panel to show the session's changes and enables
+	 * inline interaction on the dashboard card.
+	 */
+	selectSession(sessionResource: URI | undefined): void;
 
 	/**
 	 * Select an existing session as the active session.
@@ -88,6 +102,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
+
+	private readonly _selectedSessionResource = observableValue<URI | undefined>(this, undefined);
+	readonly selectedSessionResource: IObservable<URI | undefined> = this._selectedSessionResource;
 
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
@@ -207,12 +224,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	selectSession(sessionResource: URI | undefined): void {
+		this._selectedSessionResource.set(sessionResource, undefined);
+	}
+
 	getActiveSession(): IActiveSessionItem | undefined {
 		return this._activeSession.get();
 	}
 
 	async openSession(sessionResource: URI, openOptions?: ISessionOpenOptions): Promise<void> {
 		this.isNewChatSessionContext.set(false);
+		this._selectedSessionResource.set(undefined, undefined); // Clear dashboard selection
 
 		const existingSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (existingSession) {
@@ -375,6 +397,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this.isNewChatSessionContext.set(true);
 		this._activeSession.set(undefined, undefined);
+		this._selectedSessionResource.set(undefined, undefined); // Clear dashboard selection
 	}
 
 	private setActiveSession(session: IAgentSession): void {

@@ -1,0 +1,312 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getDurationString } from '../../../../../base/common/date.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, isSessionInProgressStatus } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AcceptToolConfirmationActionId, IToolConfirmationActionContext, SkipToolConfirmationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatToolActions.js';
+import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+
+export type SessionCardMode = 'row' | 'action-pill';
+
+/**
+ * Renders a session as a full-width horizontal row (active sessions)
+ * or a compact pill (action items that need input).
+ */
+export class SessionCard extends Disposable {
+
+private readonly _element: HTMLElement;
+private readonly _disposables = this._register(new DisposableStore());
+private _inlineInput: HTMLInputElement | undefined;
+private _expanded = false;
+
+private readonly _onDidSelect = this._register(new Emitter<URI>());
+readonly onDidSelect: Event<URI> = this._onDidSelect.event;
+
+get element(): HTMLElement { return this._element; }
+get sessionResource(): URI { return this.session.resource; }
+
+constructor(
+private readonly session: IAgentSession,
+private readonly mode: SessionCardMode,
+@ICommandService private readonly commandService: ICommandService,
+@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+@IChatService private readonly chatService: IChatService,
+) {
+super();
+
+this._element = dom.$('.session-row');
+this._element.dataset.status = this._statusKey();
+this._element.dataset.mode = mode;
+this._element.tabIndex = 0;
+
+if (mode === 'row') {
+this._renderRow();
+} else {
+this._renderActionPill();
+}
+}
+
+setSelected(selected: boolean): void {
+const wasSelected = this._element.classList.contains('selected');
+this._element.classList.toggle('selected', selected);
+
+if (selected && !wasSelected) {
+this._showExpandedArea();
+} else if (!selected && wasSelected) {
+this._hideExpandedArea();
+}
+}
+
+private _statusKey(): string {
+switch (this.session.status) {
+case AgentSessionStatus.NeedsInput: return 'needsInput';
+case AgentSessionStatus.InProgress: return 'inProgress';
+case AgentSessionStatus.Failed: return 'failed';
+default: return 'completed';
+}
+}
+
+ Row mode // 
+// Layout: [dot] Title / subtitle | duration | progress-bar | STATUS | file-count | chevron
+private _renderRow(): void {
+const s = this.session;
+
+// Status dot
+const dot = dom.append(this._element, dom.$('.session-row-dot'));
+dot.classList.add(this._statusKey());
+
+// Left: title + subtitle
+const left = dom.append(this._element, dom.$('.session-row-left'));
+const title = dom.append(left, dom.$('.session-row-title'));
+title.textContent = s.label;
+title.title = s.label;
+
+const subtitle = this._getSubtitle(s);
+if (subtitle) {
+const sub = dom.append(left, dom.$('.session-row-subtitle'));
+sub.textContent = subtitle;
+}
+
+// Middle: duration + progress bar
+const mid = dom.append(this._element, dom.$('.session-row-mid'));
+const duration = this._getDuration(s);
+if (duration) {
+const durEl = dom.append(mid, dom.$('.session-row-duration'));
+durEl.textContent = duration;
+}
+
+// Mini progress bar for in-progress sessions
+if (isSessionInProgressStatus(s.status)) {
+const barContainer = dom.append(mid, dom.$('.session-row-progress'));
+const bar = dom.append(barContainer, dom.$('.session-row-progress-bar'));
+bar.classList.add(s.status === AgentSessionStatus.NeedsInput ? 'paused' : 'running');
+}
+
+// Right: status badge + file count + chevron
+const right = dom.append(this._element, dom.$('.session-row-right'));
+
+// Status badge
+const badge = dom.append(right, dom.$('.session-row-badge'));
+badge.classList.add(this._statusKey());
+badge.textContent = this._statusLabel(s);
+
+// File count
+if (hasValidDiff(s.changes)) {
+const diff = getAgentChangesSummary(s.changes);
+if (diff && diff.files > 0) {
+const count = dom.append(right, dom.$('.session-row-file-count'));
+count.textContent = String(diff.files);
+}
+}
+
+// Chevron (expand/collapse)
+const chevron = dom.append(right, dom.$('.session-row-chevron'));
+dom.append(chevron, renderIcon(Codicon.chevronDown));
+
+ select (not open)
+this._disposables.add(dom.addDisposableListener(this._element, dom.EventType.CLICK, (e) => {
+if ((e.target as HTMLElement).closest('.session-card-action-button') ||
+(e.target as HTMLElement).closest('.session-row-inline-input')) {
+return;
+}
+this._onDidSelect.fire(s.resource);
+}));
+}
+
+ Action pill mode // 
+// Layout: [icon] action-label
+private _renderActionPill(): void {
+const s = this.session;
+
+const iconEl = dom.append(this._element, dom.$('.session-row-pill-icon'));
+const providerIcon = getAgentSessionProviderIcon(s.providerType as AgentSessionProviders);
+dom.append(iconEl, renderIcon(providerIcon));
+
+const label = dom.append(this._element, dom.$('.session-row-pill-label'));
+label.textContent = s.label;
+label.title = s.label;
+
+ select
+this._disposables.add(dom.addDisposableListener(this._element, dom.EventType.CLICK, () => {
+this._onDidSelect.fire(s.resource);
+}));
+}
+
+ Expanded area (shown when selected) // 
+private _showExpandedArea(): void {
+if (this._expanded) {
+return;
+}
+this._expanded = true;
+
+const area = dom.append(this._element, dom.$('.session-row-expanded'));
+
+// Action buttons row
+const actions = dom.append(area, dom.$('.session-row-expanded-actions'));
+
+if (this.session.status === AgentSessionStatus.NeedsInput) {
+this._addBtn(actions, localize('action.approve', "Approve"), Codicon.check, 'primary', () => {
+this.commandService.executeCommand(AcceptToolConfirmationActionId, { sessionResource: this.session.resource } satisfies IToolConfirmationActionContext);
+});
+this._addBtn(actions, localize('action.skip', "Skip"), Codicon.close, 'secondary', () => {
+this.commandService.executeCommand(SkipToolConfirmationActionId, { sessionResource: this.session.resource } satisfies IToolConfirmationActionContext);
+});
+}
+
+if (hasValidDiff(this.session.changes)) {
+this._addBtn(actions, localize('action.viewChanges', "View Changes"), Codicon.diffMultiple, 'secondary', () => {
+this.commandService.executeCommand('chatEditing.viewAllSessionChanges', this.session.resource);
+});
+}
+
+this._addBtn(actions, localize('action.openChat', "Open Chat"), Codicon.arrowRight, 'ghost', () => {
+this.activeSessionService.openSession(this.session.resource);
+});
+
+this._addBtn(actions, '', Codicon.archive, 'ghost', () => {
+this.session.setArchived(true);
+});
+
+// Inline input
+const inputWrapper = dom.append(area, dom.$('.session-row-inline-input'));
+this._inlineInput = dom.append(inputWrapper, dom.$('input.session-row-input-field'));
+this._inlineInput.type = 'text';
+this._inlineInput.placeholder = localize('inlineInput.placeholder', "Send a message...");
+
+const sendBtn = dom.append(inputWrapper, dom.$('.session-row-inline-send'));
+dom.append(sendBtn, renderIcon(Codicon.send));
+
+this._disposables.add(dom.addDisposableListener(this._inlineInput, dom.EventType.KEY_DOWN, (e) => {
+if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
+e.preventDefault();
+e.stopPropagation();
+this._sendMessage();
+}
+}));
+
+this._disposables.add(dom.addDisposableListener(sendBtn, dom.EventType.CLICK, (e) => {
+e.stopPropagation();
+this._sendMessage();
+}));
+
+setTimeout(() => this._inlineInput?.focus(), 50);
+}
+
+private _hideExpandedArea(): void {
+this._expanded = false;
+this._inlineInput = undefined;
+const area = this._element.querySelector('.session-row-expanded');
+area?.remove();
+}
+
+private async _sendMessage(): Promise<void> {
+if (!this._inlineInput) {
+return;
+}
+const msg = this._inlineInput.value.trim();
+if (!msg) {
+return;
+}
+this._inlineInput.value = '';
+this._inlineInput.disabled = true;
+try {
+await this.chatService.loadSessionForResource(this.session.resource, ChatAgentLocation.Chat, CancellationToken.None);
+const opts: IChatSendRequestOptions = {
+location: ChatAgentLocation.Chat,
+modeInfo: { kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined, modeId: 'agent', applyCodeBlockSuggestionId: undefined },
+};
+await this.chatService.sendRequest(this.session.resource, msg, opts);
+} finally {
+if (this._inlineInput) {
+this._inlineInput.disabled = false;
+this._inlineInput.focus();
+}
+}
+}
+
+ Helpers // 
+private _getSubtitle(s: IAgentSession): string | undefined {
+const repo = s.metadata?.repositoryPath as string | undefined;
+if (repo) {
+const parts = repo.split('/');
+return parts[parts.length - 1];
+}
+return s.providerType !== AgentSessionProviders.Local
+? `${s.providerLabel}`
+: undefined;
+}
+
+private _getDuration(s: IAgentSession): string | undefined {
+const start = s.timing.lastRequestStarted ?? s.timing.created;
+const end = s.timing.lastRequestEnded ?? Date.now();
+if (end <= start) {
+return undefined;
+}
+const elapsed = Math.max(Math.round((end - start) / 1000) * 1000, 1000);
+return getDurationString(elapsed, false);
+}
+
+private _statusLabel(s: IAgentSession): string {
+if (s.status === AgentSessionStatus.InProgress) {
+return localize('badge.running', "RUNNING");
+}
+if (s.status === AgentSessionStatus.NeedsInput) {
+return localize('badge.resume', "RESUME");
+}
+if (s.status === AgentSessionStatus.Failed) {
+return localize('badge.failed', "FAILED");
+}
+return localize('badge.done', "DONE");
+}
+
+private _addBtn(container: HTMLElement, label: string, icon: ThemeIcon, variant: string, handler: () => void): void {
+const btn = dom.append(container, dom.$(`.session-card-action-button.${variant}`));
+btn.tabIndex = 0;
+btn.role = 'button';
+btn.title = label || ThemeIcon.asClassName(icon);
+dom.append(btn, renderIcon(icon));
+if (label) {
+dom.append(btn, dom.$('span', undefined, label));
+}
+this._disposables.add(dom.addDisposableListener(btn, dom.EventType.CLICK, (e) => {
+e.stopPropagation();
+handler();
+}));
+}
+}

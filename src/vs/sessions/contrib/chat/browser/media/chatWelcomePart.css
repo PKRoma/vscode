@@ -316,3 +316,22 @@
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
 }
+
+/* Dashboard container */
+.sessions-dashboard-container {
+display: none;
+width: 100%;
+max-width: 800px;
+flex: 1;
+min-height: 0;
+box-sizing: border-box;
+padding: 0 4px;
+}
+
+.chat-full-welcome.revealed .sessions-dashboard-container {
+display: flex;
+}
+
+.sessions-dashboard-container.hidden {
+display: none !important;
+}

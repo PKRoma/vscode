@@ -12,7 +12,7 @@ import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -53,6 +53,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
+import { SessionsDashboard } from './sessionsDashboard/sessionsDashboard.js';
 
 // #region --- Target Config ---
 
@@ -178,6 +179,7 @@ class NewChatWidget extends Disposable {
 	private _localModePickersContainer: HTMLElement | undefined;
 	private _localMode: 'workspace' | 'worktree' = 'worktree';
 	private _selectedFolderUri: URI | undefined;
+	private _dashboard: SessionsDashboard | undefined;
 	private readonly _pickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
 	private readonly _pickerWidgetDisposables = this._register(new DisposableStore());
 	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
@@ -267,8 +269,6 @@ class NewChatWidget extends Disposable {
 
 		// Input slot
 		this._inputSlot = dom.append(welcomeElement, dom.$('.chat-full-welcome-inputSlot'));
-
-		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
 		this._createEditor(inputArea);
 		this._createToolbar(inputArea);
@@ -282,6 +282,22 @@ class NewChatWidget extends Disposable {
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
+
+		// Sessions dashboard
+		const dashboardContainer = dom.append(welcomeElement, dom.$('.sessions-dashboard-container'));
+		this._dashboard = this._register(this.instantiationService.createInstance(SessionsDashboard));
+		dashboardContainer.appendChild(this._dashboard.element);
+
+		// Empty hint — shown only when dashboard is empty
+		const emptyHint = dom.append(welcomeElement, dom.$('.chat-full-welcome-empty-hint'));
+		emptyHint.textContent = localize('dashboard.emptyHint', "Start a new session to get things done.");
+
+		// Toggle dashboard vs empty state
+		this._register(autorun(reader => {
+			const empty = this._dashboard!.isEmpty.read(reader);
+			emptyHint.classList.toggle('hidden', !empty);
+			dashboardContainer.classList.toggle('hidden', empty);
+		}));
 
 		// Initialize model picker
 		this._initDefaultModel();
@@ -977,6 +993,7 @@ class NewChatWidget extends Disposable {
 
 	layout(_height: number, _width: number): void {
 		this._editor?.layout();
+		this._dashboard?.layout(_height, _width);
 	}
 
 	setVisible(_visible: boolean): void {
