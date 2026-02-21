@@ -329,8 +329,7 @@
 	border-right: none;
 }
 
-.interactive-item-container .value .rendered-markdown table tr:last-child td,
-.interactive-item-container .value .rendered-markdown table tr:last-child th {
+.interactive-item-container .value .rendered-markdown table tbody tr:last-child td {
 	border-bottom: none;
 }
 
@@ -1377,22 +1376,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* Manage Models link style in model picker */
-.action-widget .monaco-list-row.action.manage-models-link {
-	color: var(--vscode-textLink-foreground) !important;
-}
-
-.action-widget .monaco-list-row.action.manage-models-link .codicon {
-	color: var(--vscode-textLink-foreground) !important;
-}
-
-.action-widget .monaco-list-row.action.manage-models-link:hover,
-.action-widget .monaco-list-row.action.manage-models-link.focused {
-	color: var(--vscode-textLink-activeForeground) !important;
-}
-
-
-
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
@@ -1416,6 +1399,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
 	display: flex;
 	max-width: 100%;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a,
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:visited {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:hover,
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {

@@ -8,11 +8,10 @@ import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Separator, toAction } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -33,7 +32,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -50,15 +49,14 @@ import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/brow
 import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IWorkspacesService, IRecentFolder, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isString } from '../../../../base/common/types.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { FolderPicker } from './folderPicker.js';
 
 // #region --- Target Config ---
 
@@ -209,9 +207,8 @@ class NewChatWidget extends Disposable {
 	private _localModeDropdownContainer: HTMLElement | undefined;
 	private _localModePickersContainer: HTMLElement | undefined;
 	private _localMode: 'workspace' | 'worktree' = 'worktree';
-	private _selectedFolderUri: URI | undefined;
-	private _recentlyPickedFolders: URI[] = [];
-	private _cachedRecentFolders: IRecentFolder[] = [];
+	private readonly _folderPicker: FolderPicker;
+	private _folderPickerContainer: HTMLElement | undefined;
 	private readonly _pickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
 	private readonly _pickerWidgetDisposables = this._register(new DisposableStore());
 	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
@@ -234,33 +231,19 @@ class NewChatWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IHoverService _hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
+		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
 		this._targetConfig = this._register(new TargetConfig(options.targetConfig));
 		this._options = options;
 
-		// Restore last picked folder and recently picked folders
-		const lastFolder = this.storageService.get('agentSessions.lastPickedFolder', StorageScope.PROFILE);
-		if (lastFolder) {
-			try { this._selectedFolderUri = URI.parse(lastFolder); } catch { /* ignore */ }
-		}
-		try {
-			const stored = this.storageService.get('agentSessions.recentlyPickedFolders', StorageScope.PROFILE);
-			if (stored) {
-				this._recentlyPickedFolders = JSON.parse(stored).map((s: string) => URI.parse(s));
-			}
-		} catch { /* ignore */ }
-
-		// Pre-fetch recently opened folders
-		this.workspacesService.getRecentlyOpened().then(recent => {
-			this._cachedRecentFolders = recent.workspaces.filter(isRecentFolder).slice(0, 10);
-		}).catch(error => {
-			this.logService.error('Failed to fetch recently opened workspaces for agent sessions', error);
-		});
+		// When folder changes, notify extension and re-render pickers
+		this._register(this._folderPicker.onDidSelectFolder(() => {
+			this._notifyFolderSelection();
+			this._renderExtensionPickers(true);
+		}));
 
 		// When target changes, regenerate pending resource
 		this._register(this._targetConfig.onDidChangeSelectedTarget(() => {
@@ -319,6 +302,7 @@ class NewChatWidget extends Disposable {
 		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
 		this._contextAttachments.registerDropTarget(inputArea);
+		this._contextAttachments.registerPasteHandler(inputArea);
 
 		// Attachments row (plus button + pills) inside input area, above editor
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
@@ -383,8 +367,7 @@ class NewChatWidget extends Disposable {
 		});
 		this._pendingSessionResources.set(target, this._pendingSessionResource);
 
-		// Create the session in the extension so that session options can be stored
-		this.chatSessionsService.getOrCreateChatSession(this._pendingSessionResource, CancellationToken.None)
+		this.sessionsManagementService.createNewPendingSession(this._pendingSessionResource,)
 			.catch((err) => this.logService.trace('Failed to create pending session:', err));
 	}
 
@@ -442,7 +425,37 @@ class NewChatWidget extends Disposable {
 		attachButton.title = localize('addContext', "Add Context...");
 		attachButton.ariaLabel = localize('addContext', "Add Context...");
 		dom.append(attachButton, renderIcon(Codicon.add));
-		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => this._contextAttachments.showPicker()));
+		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
+			this._contextAttachments.showPicker(this._getContextFolderUri());
+		}));
+	}
+
+	/**
+	 * Returns the folder URI for the context picker based on the current target.
+	 * Local targets use the workspace folder; cloud targets construct a github-remote-file:// URI.
+	 */
+	private _getContextFolderUri(): URI | undefined {
+		const target = this._getEffectiveTarget();
+
+		if (!target || target === AgentSessionProviders.Local || target === AgentSessionProviders.Background) {
+			return this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		}
+
+		// For cloud targets, look for a repository option in the selected options
+		for (const [groupId, option] of this._selectedOptions) {
+			if (isRepoOrFolderGroup({ id: groupId, name: groupId, items: [] })) {
+				const nwo = option.id; // e.g. "owner/repo"
+				if (nwo && nwo.includes('/')) {
+					return URI.from({
+						scheme: GITHUB_REMOTE_FILE_SCHEME,
+						authority: 'github',
+						path: `/${nwo}/HEAD`,
+					});
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private _createBottomToolbar(container: HTMLElement): void {
@@ -468,10 +481,10 @@ class NewChatWidget extends Disposable {
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._currentLanguageModel.set(model, undefined);
-				this.languageModelsService.addToRecentlyUsedList(model);
 			},
 			getModels: () => this._getAvailableModels(),
 			canManageModels: () => true,
+			showCuratedModels: () => this._localMode === 'workspace',
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -544,6 +557,10 @@ class NewChatWidget extends Disposable {
 		const rightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
 		this._extensionPickersLeftContainer = dom.append(rightHalf, dom.$('.sessions-chat-pickers-left-separator'));
 		this._extensionPickersRightContainer = dom.append(rightHalf, dom.$('.sessions-chat-extension-pickers-right'));
+
+		// Folder picker (rendered once, shown/hidden based on target)
+		this._folderPickerContainer = this._folderPicker.render(rightHalf);
+		this._folderPickerContainer.style.display = 'none';
 
 		this._renderExtensionPickers();
 	}
@@ -646,18 +663,13 @@ class NewChatWidget extends Disposable {
 		if (!this._pendingSessionResource) {
 			return;
 		}
-		const folderUri = this._selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const folderUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
 		if (folderUri) {
 			this.chatSessionsService.notifySessionOptionsChange(
 				this._pendingSessionResource,
 				[{ optionId: 'repository', value: folderUri.fsPath }]
 			).catch((err) => this.logService.error('Failed to notify extension of folder selection:', err));
 		}
-	}
-
-	private _addToRecentlyPickedFolders(folderUri: URI): void {
-		this._recentlyPickedFolders = [folderUri, ...this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri))].slice(0, 10);
-		this.storageService.store('agentSessions.recentlyPickedFolders', JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _renderLocalModePickers(): void {
@@ -688,7 +700,12 @@ class NewChatWidget extends Disposable {
 		// For Local target, show folder picker in top row and handle bottom row
 		if (this._targetConfig.selectedTarget.get() === AgentSessionProviders.Local) {
 			this._clearExtensionPickers();
-			this._renderLocalFolderPickerInTopRow();
+			if (this._folderPickerContainer) {
+				this._folderPickerContainer.style.display = '';
+			}
+			if (this._extensionPickersLeftContainer) {
+				this._extensionPickersLeftContainer.style.display = 'block';
+			}
 			this._renderLocalModePicker();
 			return;
 		}
@@ -797,90 +814,6 @@ class NewChatWidget extends Disposable {
 			const slot = dom.append(targetContainer, dom.$('.sessions-chat-picker-slot'));
 			widget.render(slot);
 		}
-	}
-
-	private _renderLocalFolderPickerInTopRow(): void {
-		if (!this._extensionPickersRightContainer) {
-			return;
-		}
-
-		// Show the separator
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'block';
-		}
-
-		this._renderLocalFolderPickerInContainer(this._extensionPickersRightContainer, this._pickerWidgetDisposables);
-	}
-
-	private _renderLocalFolderPickerInContainer(container: HTMLElement, disposables: DisposableStore): void {
-		const currentFolderUri = this._selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
-		const folderName = currentFolderUri ? basename(currentFolderUri) : localize('pickFolder', "Pick Folder");
-
-		const switchFolder = async (folderUri: URI) => {
-			this._selectedFolderUri = folderUri;
-			this._addToRecentlyPickedFolders(folderUri);
-			this.storageService.store('agentSessions.lastPickedFolder', folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
-			this._notifyFolderSelection();
-			this._renderExtensionPickers(true);
-		};
-
-		const folderAction = toAction({ id: 'folderPicker', label: folderName, run: () => { } });
-		const folderDropdown = disposables.add(new LabeledDropdownMenuActionViewItem(
-			folderAction,
-			{
-				getActions: () => this._getFolderPickerActions(currentFolderUri, switchFolder),
-			},
-			this.contextMenuService,
-			{ classNames: [...ThemeIcon.asClassNameArray(Codicon.folder)] }
-		));
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		folderDropdown.render(slot);
-	}
-
-	private _getFolderPickerActions(currentFolderUri: URI | undefined, switchFolder: (uri: URI) => Promise<void>): (ReturnType<typeof toAction> | Separator)[] {
-		const seenUris = new Set<string>();
-		if (currentFolderUri) {
-			seenUris.add(currentFolderUri.toString());
-		}
-
-		const actions: (ReturnType<typeof toAction> | Separator)[] = [];
-
-		// Combine recently picked folders and recently opened folders (picked first, then opened)
-		const allFolders: { uri: URI; label?: string }[] = [
-			...this._recentlyPickedFolders.map(uri => ({ uri })),
-			...this._cachedRecentFolders.map(r => ({ uri: r.folderUri, label: r.label })),
-		];
-		for (const folder of allFolders) {
-			const key = folder.uri.toString();
-			if (seenUris.has(key)) {
-				continue;
-			}
-			seenUris.add(key);
-			actions.push(toAction({
-				id: key,
-				label: folder.label || basename(folder.uri),
-				run: () => switchFolder(folder.uri),
-			}));
-		}
-
-		actions.push(new Separator());
-		actions.push(toAction({
-			id: 'browse',
-			label: localize('browseFolder', "Browse..."),
-			run: async () => {
-				const selected = await this.fileDialogService.showOpenDialog({
-					canSelectFiles: false,
-					canSelectFolders: true,
-					canSelectMany: false,
-					title: localize('selectFolder', "Select Folder"),
-				});
-				if (selected?.[0]) {
-					await switchFolder(selected[0]);
-				}
-			},
-		}));
-
-		return actions;
 	}
 
 	private _renderExtensionPickersInContainer(container: HTMLElement, sessionType: AgentSessionProviders): void {
@@ -1036,6 +969,9 @@ class NewChatWidget extends Disposable {
 		this._pickerWidgetDisposables.clear();
 		this._pickerWidgets.clear();
 		this._optionEmitters.clear();
+		if (this._folderPickerContainer) {
+			this._folderPickerContainer.style.display = 'none';
+		}
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'none';
 		}
@@ -1080,7 +1016,7 @@ class NewChatWidget extends Disposable {
 			attachedContext: this._contextAttachments.attachments.length > 0 ? [...this._contextAttachments.attachments] : undefined,
 		};
 
-		const folderUri = this._selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const folderUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
 
 		this._options.onSendRequest?.({
 			resource,
@@ -1189,6 +1125,9 @@ export class NewChatViewPane extends ViewPane {
 	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
 		this._widget?.setVisible(visible);
+		if (visible) {
+			this._widget?.focusInput();
+		}
 	}
 }
 

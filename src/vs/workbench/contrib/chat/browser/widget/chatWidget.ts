@@ -2330,6 +2330,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
 		// which could be a surprising behavior if the user finishes typing a steering
 		// request just as confirmation is triggered.
+		if (options.alwaysQueue) {
+			options.queue ??= ChatRequestQueueKind.Queued;
+		}
 		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
 			options.queue ??= ChatRequestQueueKind.Queued;
@@ -2337,7 +2340,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (requestInProgress) {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
-		if (!requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
+		if (!options.alwaysQueue && !requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
 			return;
 		}
 
@@ -2400,7 +2403,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
-			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind },
+			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
@@ -2408,6 +2411,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
+			pauseQueue: options?.alwaysQueue,
 		});
 
 		if (this.viewModel.sessionResource && !options.queue && ChatSendResult.isRejected(result)) {

@@ -560,7 +560,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.mainContainer, notificationService.model));
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
-		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
+		const notificationsStatus = this._register(instantiationService.createInstance(NotificationsStatus, notificationService.model));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {

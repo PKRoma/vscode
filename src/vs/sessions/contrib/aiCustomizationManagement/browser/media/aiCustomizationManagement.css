@@ -9,7 +9,6 @@
 	flex-direction: column;
 	height: 100%;
 	overflow: hidden;
-	border-top: 1px solid var(--vscode-panel-border);
 }
 
 /* Sidebar */
@@ -17,12 +16,12 @@
 	background-color: var(--vscode-sideBar-background);
 	height: 100%;
 	overflow: hidden;
-	border-right: 1px solid var(--vscode-panel-border);
 }
 
 .ai-customization-management-editor .sidebar-content {
 	height: 100%;
-	padding: 12px 0 12px 4px;
+	padding: 4px;
+	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
 }
@@ -41,7 +40,6 @@
 	padding: 4px 8px;
 	gap: 10px;
 	cursor: pointer;
-	margin: 1px 6px;
 	border-radius: 4px;
 	transition: background-color 0.1s ease, opacity 0.1s ease;
 }

@@ -9,7 +9,7 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -144,6 +144,11 @@ export interface ITipDefinition {
 		/** If true, exclude the tip until the async file check completes. Default: false. */
 		readonly excludeUntilChecked?: boolean;
 	};
+	/**
+	 * Setting keys that, if changed from their default value, make this tip ineligible.
+	 * The tip won't be shown if the user has already customized the setting it describes.
+	 */
+	readonly excludeWhenSettingsChanged?: string[];
 }
 
 /**
@@ -267,6 +272,20 @@ const TIP_CATALOG: ITipDefinition[] = [
 		when: ChatContextKeys.chatSessionIsEmpty.negate(),
 		enabledCommands: ['workbench.action.chat.sendToNewChat'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.sendToNewChat'],
+	},
+	{
+		id: 'tip.thinkingStyle',
+		message: localize('tip.thinkingStyle', "Tip: Change how the agent's reasoning is displayed with the [thinking style](command:workbench.action.openSettings?%5B%22chat.agent.thinking.style%22%5D) setting."),
+		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: ['chat.agent.thinking.style'],
+	},
+	{
+		id: 'tip.thinkingPhrases',
+		message: localize('tip.thinkingPhrases', "Tip: Customize the loading messages shown while the agent works with [thinking phrases](command:workbench.action.openSettings?%5B%22chat.agent.thinking.phrases%22%5D)."),
+		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: ['chat.agent.thinking.phrases'],
 	},
 ];
 
@@ -560,8 +579,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	private static readonly _DISMISSED_TIP_KEY = 'chat.tip.dismissed';
 	private static readonly _LAST_TIP_ID_KEY = 'chat.tip.lastTipId';
+	private static readonly _YOLO_EVER_ENABLED_KEY = 'chat.tip.yoloModeEverEnabled';
 	private readonly _tracker: TipEligibilityTracker;
 	private readonly _createSlashCommandsUsageTracker: CreateSlashCommandsUsageTracker;
+	private _yoloModeEverEnabled: boolean;
 
 	constructor(
 		@IProductService private readonly _productService: IProductService,
@@ -580,6 +601,25 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				this.hideTip();
 			}
 		}));
+
+		// Track whether yolo mode was ever enabled
+		this._yoloModeEverEnabled = this._storageService.getBoolean(ChatTipService._YOLO_EVER_ENABLED_KEY, StorageScope.APPLICATION, false);
+		if (!this._yoloModeEverEnabled && this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
+			this._yoloModeEverEnabled = true;
+			this._storageService.store(ChatTipService._YOLO_EVER_ENABLED_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		if (!this._yoloModeEverEnabled) {
+			const configListener = this._register(new MutableDisposable());
+			configListener.value = this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
+					if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
+						this._yoloModeEverEnabled = true;
+						this._storageService.store(ChatTipService._YOLO_EVER_ENABLED_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+						configListener.clear();
+					}
+				}
+			});
+		}
 	}
 
 	resetSession(): void {
@@ -806,6 +846,26 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 		if (this._tracker.isExcluded(tip)) {
 			return false;
+		}
+		if (tip.id === 'tip.yoloMode') {
+			if (this._yoloModeEverEnabled) {
+				this._logService.debug('#ChatTips: tip excluded because yolo mode was previously enabled', tip.id);
+				return false;
+			}
+			const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+			if (inspected.policyValue === false) {
+				this._logService.debug('#ChatTips: tip excluded because policy restricts auto-approve', tip.id);
+				return false;
+			}
+		}
+		if (tip.excludeWhenSettingsChanged) {
+			for (const key of tip.excludeWhenSettingsChanged) {
+				const inspected = this._configurationService.inspect(key);
+				if (inspected.userValue !== undefined || inspected.userLocalValue !== undefined || inspected.userRemoteValue !== undefined || inspected.workspaceValue !== undefined || inspected.workspaceFolderValue !== undefined) {
+					this._logService.debug('#ChatTips: tip excluded because setting was changed from default', tip.id, key);
+					return false;
+				}
+			}
 		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
 		return true;

@@ -385,7 +385,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
 		const embedded = isInsiderOrExploration
-			? (product as typeof product & { embedded?: { nameShort: string; nameLong: string; applicationName: string; dataFolderName: string; darwinBundleIdentifier: string } }).embedded
+			? (product as typeof product & { embedded?: { nameShort: string; nameLong: string; applicationName: string; dataFolderName: string; darwinBundleIdentifier: string; urlProtocol: string } }).embedded
 			: undefined;
 
 		const packageSubJsonStream = isInsiderOrExploration
@@ -405,6 +405,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					json.applicationName = embedded.applicationName;
 					json.dataFolderName = embedded.dataFolderName;
 					json.darwinBundleIdentifier = embedded.darwinBundleIdentifier;
+					json.urlProtocol = embedded.urlProtocol;
 					return json;
 				}))
 				.pipe(rename('product.sub.json'))

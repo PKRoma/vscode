@@ -103,7 +103,10 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				this._updatePosition();
 			}
 		}));
-		this._store.add(this._editor.onMouseDown(() => {
+		this._store.add(this._editor.onMouseDown((e) => {
+			if (this._isWidgetTarget(e.event.target)) {
+				return;
+			}
 			this._mouseDown = true;
 			this._hide();
 		}));
@@ -111,8 +114,26 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._mouseDown = false;
 			this._onSelectionChanged();
 		}));
-		this._store.add(this._editor.onDidBlurEditorWidget(() => this._hide()));
+		this._store.add(this._editor.onDidBlurEditorWidget(() => {
+			if (!this._visible) {
+				return;
+			}
+			// Defer so focus has settled to the new target
+			getWindow(this._editor.getDomNode()!).setTimeout(() => {
+				if (!this._visible) {
+					return;
+				}
+				if (this._isWidgetTarget(getWindow(this._editor.getDomNode()!).document.activeElement)) {
+					return;
+				}
+				this._hide();
+			}, 0);
+		}));
 		this._store.add(this._editor.onDidFocusEditorWidget(() => this._onSelectionChanged()));
+	}
+
+	private _isWidgetTarget(target: EventTarget | Element | null): boolean {
+		return !!this._widget && !!target && this._widget.getDomNode().contains(target as Node);
 	}
 
 	private _ensureWidget(): AgentFeedbackInputWidget {
@@ -145,13 +166,13 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const match = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
-		if (!match) {
+		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
+		if (!sessionResource) {
 			this._hide();
 			return;
 		}
 
-		this._sessionResource = match.sessionResource;
+		this._sessionResource = sessionResource;
 		this._show();
 	}
 
@@ -239,6 +260,20 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// Stop propagation of input events so the editor doesn't handle them
 		this._widgetListeners.add(addStandardDisposableListener(widget.inputElement, 'keypress', e => {
 			e.stopPropagation();
+		}));
+
+		// Hide when input loses focus to something outside both editor and widget
+		this._widgetListeners.add(addStandardDisposableListener(widget.inputElement, 'blur', () => {
+			const win = getWindow(widget.inputElement);
+			win.setTimeout(() => {
+				if (!this._visible) {
+					return;
+				}
+				if (this._editor.hasWidgetFocus()) {
+					return;
+				}
+				this._hide();
+			}, 0);
 		}));
 	}
 
