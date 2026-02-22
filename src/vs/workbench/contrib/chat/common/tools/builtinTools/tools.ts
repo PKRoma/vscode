@@ -11,6 +11,7 @@ import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
+import { ReadImageTool, ReadImageToolData } from './readImageTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -25,6 +26,9 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 		const editTool = instantiationService.createInstance(EditTool);
 		this._register(toolsService.registerTool(EditToolData, editTool));
+
+		const readImageTool = instantiationService.createInstance(ReadImageTool);
+		this._register(toolsService.registerTool(ReadImageToolData, readImageTool));
 
 		const askQuestionsTool = this._register(instantiationService.createInstance(AskQuestionsTool));
 		this._register(toolsService.registerTool(AskQuestionsToolData, askQuestionsTool));
