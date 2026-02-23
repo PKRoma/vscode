@@ -13,7 +13,7 @@ import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyn
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 
 //#region Utilities
 
@@ -58,7 +58,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		await editorService.openEditor({
 			resource: extractURI(context)
-		});
+		}, undefined, MODAL_GROUP);
 	}
 });
 

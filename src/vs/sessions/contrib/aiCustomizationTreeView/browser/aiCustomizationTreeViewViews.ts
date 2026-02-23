@@ -32,7 +32,7 @@ import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -575,7 +575,7 @@ export class AICustomizationViewPane extends ViewPane {
 			if (e.element && e.element.type === 'file') {
 				this.editorService.openEditor({
 					resource: e.element.uri
-				});
+				}, undefined, MODAL_GROUP);
 			}
 		}));
 
