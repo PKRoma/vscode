@@ -11,16 +11,18 @@
 /* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
 
 /**
- * The auxiliary bar and panel use a card-like appearance with margins and border-radius
+ * The panel uses a card-like appearance with margins and border-radius
  * applied directly on the .part element. The grid allocates full space; CSS margin shrinks
  * the part within its split-view-view wrapper. Layout dimensions are reduced in code
- * (AgenticAuxiliaryBarPart) to keep internal layout correct.
+ * to keep internal layout correct.
  *
  * No z-index or stacking-context changes - sashes render naturally on top.
  *
+ * The sidebar and auxiliary bar are flush (no card, span full height).
+ *
  * Margin values (must match the constants in the Part classes):
  *   Sidebar:       no card (flush, spans full height)
- *   Auxiliary bar:  top=8, bottom=8, right=8
+ *   Auxiliary bar:  no card (flush, spans full height)
  *   Panel:          bottom=8, left=8, right=8
  */
 
@@ -30,10 +32,8 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 8px 8px 8px 0;
-	background: var(--part-background);
-	border: 1px solid var(--part-border-color, transparent);
-	border-radius: 8px;
+	background: var(--vscode-sideBar-background);
+	border-left: 1px solid var(--vscode-sideBar-border, transparent);
 }
 
 .agent-sessions-workbench .part.panel {

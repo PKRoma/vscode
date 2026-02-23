@@ -45,10 +45,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly placeholderViewContainersKey = 'workbench.agentsession.auxiliarybar.placeholderPanels';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
 
-	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 8;
-	static readonly MARGIN_BOTTOM = 8;
-	static readonly MARGIN_RIGHT = 8;
+	/** Visual margin values (no card appearance — flush like the sidebar) */
+	static readonly MARGIN_TOP = 0;
+	static readonly MARGIN_BOTTOM = 0;
+	static readonly MARGIN_RIGHT = 0;
 
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
@@ -139,19 +139,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		const container = assertReturnsDefined(this.getContainer());
 
-		// Store background and border as CSS variables for the card styling on .part
-		container.style.setProperty('--part-background', this.getColor(SIDE_BAR_BACKGROUND) || '');
-		container.style.setProperty('--part-border-color', this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder) || 'transparent');
-		container.style.backgroundColor = 'transparent';
+		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
-
-		// Clear borders - the card appearance uses border-radius instead
-		container.style.borderLeftColor = '';
-		container.style.borderRightColor = '';
-		container.style.borderLeftStyle = '';
-		container.style.borderRightStyle = '';
-		container.style.borderLeftWidth = '';
-		container.style.borderRightWidth = '';
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
