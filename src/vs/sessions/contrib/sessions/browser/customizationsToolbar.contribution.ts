@@ -31,7 +31,7 @@ import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getPromptSourceCounts, getSkillSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 
 interface ICustomizationItemConfig {
 	readonly id: string;
@@ -252,7 +252,7 @@ class CustomizationsToolbarContribution extends Disposable implements IWorkbench
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const input = AICustomizationManagementEditorInput.getOrCreate();
-					const editor = await editorService.openEditor(input, { pinned: true });
+					const editor = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 					if (editor instanceof AICustomizationManagementEditor) {
 						editor.selectSectionById(config.section);
 					}
