@@ -22,7 +22,6 @@ import { IAction } from '../../../base/common/actions.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
-import { Part } from '../../../workbench/browser/part.js';
 import { ActionsOrientation, IActionViewItem } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IMenuService, IMenu, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
@@ -44,11 +43,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly pinnedViewsKey = 'workbench.agentsession.auxiliarybar.pinnedPanels';
 	static readonly placeholderViewContainersKey = 'workbench.agentsession.auxiliarybar.placeholderPanels';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
-
-	/** Visual margin values (no card appearance — flush like the sidebar) */
-	static readonly MARGIN_TOP = 0;
-	static readonly MARGIN_BOTTOM = 0;
-	static readonly MARGIN_RIGHT = 0;
 
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
@@ -250,15 +244,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		}
 
 		// Layout content with reduced dimensions to account for visual margins
-		super.layout(
-			width - AuxiliaryBarPart.MARGIN_RIGHT,
-			height - AuxiliaryBarPart.MARGIN_TOP - AuxiliaryBarPart.MARGIN_BOTTOM,
-			top, left
-		);
-
-		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
-		// Part.layout() only stores _dimension and _contentPosition - no other side effects.
-		Part.prototype.layout.call(this, width, height, top, left);
+		super.layout(width, height, top, left);
 	}
 
 	override toJSON(): object {

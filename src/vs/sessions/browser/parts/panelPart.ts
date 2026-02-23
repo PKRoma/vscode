@@ -24,7 +24,6 @@ import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IMenuService } from '../../../platform/actions/common/actions.js';
 import { Menus } from '../menus.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
-import { Part } from '../../../workbench/browser/part.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -180,9 +179,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 			height - PanelPart.MARGIN_BOTTOM,
 			top, left
 		);
-
-		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
-		Part.prototype.layout.call(this, width, height, top, left);
 	}
 
 	protected override shouldShowCompositeBar(): boolean {

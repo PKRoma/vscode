@@ -23,7 +23,6 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { ICompositeTitleLabel } from '../../../workbench/browser/parts/compositePart.js';
-import { Part } from '../../../workbench/browser/part.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
@@ -241,9 +240,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			height - footerHeight,
 			top, left
 		);
-
-		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
-		Part.prototype.layout.call(this, width, height, top, left);
 	}
 
 	protected override getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
