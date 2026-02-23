@@ -9,7 +9,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
-import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
+import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS, type NLSPostProcessEdit } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import product from '../../product.json' with { type: 'json' };
@@ -885,6 +885,8 @@ ${tslib}`,
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
 	// Map from JS file path to pre-mangle content + edits, for source map adjustment
 	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Map from JS file path to pre-NLS content + edits, for source map adjustment
+	const nlsEdits = new Map<string, { preNlsCode: string; edits: readonly NLSPostProcessEdit[] }>();
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -913,7 +915,12 @@ ${tslib}`,
 
 				// Apply NLS post-processing if enabled (JS only)
 				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
+					const preNlsCode = content;
+					const nlsResult = postProcessNLS(content, indexMap, preserveEnglish);
+					content = nlsResult.code;
+					if (nlsResult.edits.length > 0) {
+						nlsEdits.set(file.path, { preNlsCode, edits: nlsResult.edits });
+					}
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
@@ -931,13 +938,19 @@ ${tslib}`,
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {
-				// Source maps may need adjustment if private fields were mangled
+				// Source maps may need adjustment for private field mangling and/or NLS post-processing
 				const jsPath = file.path.replace(/\.map$/, '');
-				const editInfo = mangleEdits.get(jsPath);
-				if (editInfo) {
-					const mapJson = JSON.parse(file.text);
-					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
-					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
+				const mangleEditInfo = mangleEdits.get(jsPath);
+				const nlsEditInfo = nlsEdits.get(jsPath);
+				if (mangleEditInfo || nlsEditInfo) {
+					let mapJson = JSON.parse(file.text);
+					if (mangleEditInfo) {
+						mapJson = adjustSourceMap(mapJson, mangleEditInfo.preMangleCode, mangleEditInfo.edits);
+					}
+					if (nlsEditInfo) {
+						mapJson = adjustSourceMap(mapJson, nlsEditInfo.preNlsCode, nlsEditInfo.edits);
+					}
+					await fs.promises.writeFile(file.path, JSON.stringify(mapJson));
 				} else {
 					await fs.promises.writeFile(file.path, file.contents);
 				}

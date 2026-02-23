@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { type RawSourceMap, SourceMapConsumer } from 'source-map';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from '../nls-plugin.ts';
+import { adjustSourceMap } from '../private-to-property.ts';
 
 // analyzeLocalizeCalls requires the import path to end with `/nls`
 const NLS_STUB = [
@@ -36,7 +37,7 @@ interface BundleResult {
 async function bundleWithNLS(
 	files: Record<string, string>,
 	entryPoint: string,
-	opts?: { postProcess?: boolean }
+	opts?: { postProcess?: boolean; minify?: boolean }
 ): Promise<BundleResult> {
 	const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'nls-sm-test-'));
 	const srcDir = path.join(tmpDir, 'src');
@@ -65,6 +66,7 @@ async function bundleWithNLS(
 		sourcemap: 'linked',
 		sourcesContent: true,
 		write: false,
+		minify: opts?.minify ?? false,
 		plugins: [
 			nlsPlugin({ baseDir: srcDir, collector }),
 		],
@@ -91,7 +93,15 @@ async function bundleWithNLS(
 	// Optionally apply NLS post-processing (replaces placeholders with indices)
 	if (opts?.postProcess) {
 		const nlsResult = await finalizeNLS(collector, outDir);
-		jsContent = postProcessNLS(jsContent, nlsResult.indexMap, false);
+		const preNlsCode = jsContent;
+		const nlsPostResult = postProcessNLS(jsContent, nlsResult.indexMap, false);
+		jsContent = nlsPostResult.code;
+
+		// Adjust source map for the NLS replacements
+		if (nlsPostResult.edits.length > 0) {
+			const adjusted = adjustSourceMap(JSON.parse(mapContent), preNlsCode, nlsPostResult.edits);
+			mapContent = JSON.stringify(adjusted);
+		}
 	}
 
 	assert.ok(jsContent, 'Expected JS output');
@@ -366,6 +376,42 @@ suite('NLS plugin source maps', () => {
 				'sourcesContent should still contain original localize("greeting") call');
 			assert.ok(!postContent.includes('%%NLS:'),
 				'sourcesContent should not contain NLS placeholders');
+		} finally {
+			cleanup();
+		}
+	});
+
+	test('post-processed NLS - column mappings correct after placeholder replacement', async () => {
+		// When NLS placeholders (long strings like "%%NLS:test/postdrift#k%%") are replaced
+		// with short indices (e.g. 0) AND the message string is replaced with null,
+		// the source map must be adjusted so that column positions still map correctly.
+		// Use minification to ensure code stays on one line, exposing the column drift.
+		const source = [
+			'import { localize } from "../vs/nls";',
+			'const x = localize("k", "msg"); const z = "MARKER"; export { x, z };',
+		].join('\n');
+
+		const { js, map, cleanup } = await bundleWithNLS(
+			{ 'test/postdrift.ts': source },
+			'test/postdrift.ts',
+			{ postProcess: true, minify: true }
+		);
+
+		try {
+			assert.ok(!js.includes('%%NLS:'), 'Should not contain NLS placeholders after post-processing');
+
+			const bundleLine = findLine(js, 'MARKER');
+			const bundleCol = findColumn(js, '"MARKER"');
+			const pos = map.originalPositionFor({ line: bundleLine, column: bundleCol });
+
+			assert.ok(pos.source, 'Should have source');
+			assert.strictEqual(pos.line, 2, 'Should map to line 2');
+
+			const originalCol = findColumn(source, '"MARKER"');
+			const columnDrift = Math.abs(pos.column! - originalCol);
+			assert.ok(columnDrift <= 20,
+				`Column should be close to original. Expected ~${originalCol}, got ${pos.column} (drift: ${columnDrift}). ` +
+				`NLS post-processing shifted columns without adjusting the source map.`);
 		} finally {
 			cleanup();
 		}
