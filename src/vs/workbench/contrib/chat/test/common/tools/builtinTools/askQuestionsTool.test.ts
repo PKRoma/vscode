@@ -7,7 +7,7 @@ import assert from 'assert';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
+import { AskQuestionsTool, AskQuestionsToolData, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 
 class TestableAskQuestionsTool extends AskQuestionsTool {
@@ -148,5 +148,11 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 		const result = tool.testConvertCarouselAnswers(questions, { Case: 'yes' });
 
 		assert.deepStrictEqual(result.answers['Case'], { selected: [], freeText: 'yes', skipped: false });
+	});
+});
+
+suite('AskQuestionsTool data', () => {
+	test('is not directly referenceable in prompts', () => {
+		assert.strictEqual(AskQuestionsToolData.canBeReferencedInPrompt, undefined);
 	});
 });
