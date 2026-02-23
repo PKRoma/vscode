@@ -91,7 +91,7 @@ async function bundleWithNLS(
 	// Optionally apply NLS post-processing (replaces placeholders with indices)
 	if (opts?.postProcess) {
 		const nlsResult = await finalizeNLS(collector, outDir);
-		jsContent = postProcessNLS(jsContent, nlsResult.indexMap, false);
+		jsContent = postProcessNLS(jsContent, nlsResult.indexMap, false).code;
 	}
 
 	assert.ok(jsContent, 'Expected JS output');

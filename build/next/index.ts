@@ -9,7 +9,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
-import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
+import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS, type NLSTextEdit } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import product from '../../product.json' with { type: 'json' };
@@ -883,8 +883,10 @@ ${tslib}`,
 	// Post-process and write all output files
 	let bundled = 0;
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
-	// Map from JS file path to pre-mangle content + edits, for source map adjustment
+	// Maps from JS file path to edits for source map adjustment.
+	// We track mangle edits + NLS edits separately since they apply sequentially.
 	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	const nlsEdits = new Map<string, { preNlsCode: string; edits: readonly NLSTextEdit[] }>();
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -913,7 +915,12 @@ ${tslib}`,
 
 				// Apply NLS post-processing if enabled (JS only)
 				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
+					const preNlsCode = content;
+					const nlsResult = postProcessNLS(content, indexMap, preserveEnglish);
+					content = nlsResult.code;
+					if (nlsResult.edits.length > 0) {
+						nlsEdits.set(file.path, { preNlsCode, edits: nlsResult.edits });
+					}
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
@@ -931,13 +938,23 @@ ${tslib}`,
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {
-				// Source maps may need adjustment if private fields were mangled
+				// Source maps need adjustment if the JS was post-processed
 				const jsPath = file.path.replace(/\.map$/, '');
-				const editInfo = mangleEdits.get(jsPath);
-				if (editInfo) {
-					const mapJson = JSON.parse(file.text);
-					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
-					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
+				const mEdits = mangleEdits.get(jsPath);
+				const nEdits = nlsEdits.get(jsPath);
+
+				if (mEdits || nEdits) {
+					let mapJson = JSON.parse(file.text);
+					// Apply adjustments in the same order as the transforms:
+					// 1. mangle-privates (edits against raw esbuild output)
+					if (mEdits) {
+						mapJson = adjustSourceMap(mapJson, mEdits.preMangleCode, mEdits.edits);
+					}
+					// 2. NLS post-processing (edits against post-mangle output)
+					if (nEdits) {
+						mapJson = adjustSourceMap(mapJson, nEdits.preNlsCode, nEdits.edits);
+					}
+					await fs.promises.writeFile(file.path, JSON.stringify(mapJson));
 				} else {
 					await fs.promises.writeFile(file.path, file.contents);
 				}

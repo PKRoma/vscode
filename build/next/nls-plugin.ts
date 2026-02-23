@@ -146,14 +146,27 @@ export async function finalizeNLS(
 	return { indexMap, messageCount: allMessages.length };
 }
 
+export interface NLSTextEdit {
+	readonly start: number;
+	readonly end: number;
+	readonly newText: string;
+}
+
+export interface PostProcessNLSResult {
+	readonly code: string;
+	readonly edits: readonly NLSTextEdit[];
+}
+
 /**
  * Post-processes a JavaScript file to replace NLS placeholders with indices.
+ * Returns the transformed code and the edits that were applied, so the caller
+ * can adjust source maps accordingly.
  */
 export function postProcessNLS(
 	content: string,
 	indexMap: Map<string, number>,
 	preserveEnglish: boolean
-): string {
+): PostProcessNLSResult {
 	return replaceInOutput(content, indexMap, preserveEnglish);
 }
 
@@ -302,63 +315,72 @@ function replaceInOutput(
 	content: string,
 	indexMap: Map<string, number>,
 	preserveEnglish: boolean
-): string {
-	// Replace all placeholders in a single pass using regex
+): PostProcessNLSResult {
+	const edits: NLSTextEdit[] = [];
+
+	// Collect all replacements as edits first, then apply them in reverse order
+	// to preserve offset accuracy. This avoids the two-pass offset-tracking problem.
+	//
 	// Two types of placeholders:
-	// - %%NLS:moduleId#key%% for localize() - message replaced with null
-	// - %%NLS2:moduleId#key%% for localize2() - message preserved
-	// Note: esbuild may use single or double quotes, so we handle both
+	// - %%NLS:moduleId#key%% for localize() - key replaced with index, message with null
+	// - %%NLS2:moduleId#key%% for localize2() - key replaced with index, message kept
 
 	if (preserveEnglish) {
-		// Just replace the placeholder with the index (both NLS and NLS2)
-		return content.replace(/["']%%NLS2?:([^%]+)%%["']/g, (match, inner) => {
-			// Try NLS first, then NLS2
-			let placeholder = `%%NLS:${inner}%%`;
+		// Both NLS and NLS2: just replace the placeholder with the index
+		const regex = /["']%%NLS2?:([^%]+)%%["']/g;
+		let match;
+		while ((match = regex.exec(content)) !== null) {
+			let placeholder = `%%NLS:${match[1]}%%`;
 			let index = indexMap.get(placeholder);
 			if (index === undefined) {
-				placeholder = `%%NLS2:${inner}%%`;
+				placeholder = `%%NLS2:${match[1]}%%`;
 				index = indexMap.get(placeholder);
 			}
 			if (index !== undefined) {
-				return String(index);
+				edits.push({ start: match.index, end: match.index + match[0].length, newText: String(index) });
 			}
-			// Placeholder not found in map, leave as-is (shouldn't happen)
-			return match;
-		});
+		}
 	} else {
-		// For NLS (localize): replace placeholder with index AND replace message with null
-		// For NLS2 (localize2): replace placeholder with index, keep message
-		// Note: Use (?:[^"\\]|\\.)* to properly handle escaped quotes like \" or \\
-		// Note: esbuild may use single or double quotes, so we handle both
-
-		// First handle NLS (localize) - replace both key and message
-		content = content.replace(
-			/["']%%NLS:([^%]+)%%["'](\s*,\s*)(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g,
-			(match, inner, comma) => {
-				const placeholder = `%%NLS:${inner}%%`;
-				const index = indexMap.get(placeholder);
-				if (index !== undefined) {
-					return `${index}${comma}null`;
-				}
-				return match;
+		// NLS (localize): replace key+message with index+null
+		const nlsRegex = /["']%%NLS:([^%]+)%%["'](\s*,\s*)(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g;
+		let match;
+		while ((match = nlsRegex.exec(content)) !== null) {
+			const placeholder = `%%NLS:${match[1]}%%`;
+			const index = indexMap.get(placeholder);
+			if (index !== undefined) {
+				edits.push({ start: match.index, end: match.index + match[0].length, newText: `${index}${match[2]}null` });
 			}
-		);
+		}
 
-		// Then handle NLS2 (localize2) - replace only key, keep message
-		content = content.replace(
-			/["']%%NLS2:([^%]+)%%["']/g,
-			(match, inner) => {
-				const placeholder = `%%NLS2:${inner}%%`;
-				const index = indexMap.get(placeholder);
-				if (index !== undefined) {
-					return String(index);
-				}
-				return match;
+		// NLS2 (localize2): replace key only with index
+		const nls2Regex = /["']%%NLS2:([^%]+)%%["']/g;
+		while ((match = nls2Regex.exec(content)) !== null) {
+			const placeholder = `%%NLS2:${match[1]}%%`;
+			const index = indexMap.get(placeholder);
+			if (index !== undefined) {
+				edits.push({ start: match.index, end: match.index + match[0].length, newText: String(index) });
 			}
-		);
+		}
 
-		return content;
+		// Sort by position
+		edits.sort((a, b) => a.start - b.start);
 	}
+
+	// Apply edits to produce the output (forward order, tracking offset shift)
+	if (edits.length === 0) {
+		return { code: content, edits };
+	}
+
+	const parts: string[] = [];
+	let lastEnd = 0;
+	for (const edit of edits) {
+		parts.push(content.substring(lastEnd, edit.start));
+		parts.push(edit.newText);
+		lastEnd = edit.end;
+	}
+	parts.push(content.substring(lastEnd));
+
+	return { code: parts.join(''), edits };
 }
 
 // ============================================================================
