@@ -164,51 +164,51 @@ export function createAiStatsChart(
 
 	function renderDaysView() {
 		const dailyData = aggregateSessionsByDay(sessionsData);
-		const barCount = dailyData.length;
-		const barWidth = Math.min(20, (innerWidth - (barCount - 1) * 2) / barCount);
-		const gap = 2;
-		const totalBarSpace = barCount * barWidth + (barCount - 1) * gap;
-		const startX = (innerWidth - totalBarSpace) / 2;
+		const n = dailyData.length;
 
-		// Calculate which labels to show based on available space
-		// Each label needs roughly 40px of space to not overlap
+		const xFor = (i: number) => n === 1 ? innerWidth / 2 : i / (n - 1) * innerWidth;
+
+		// Draw line
+		const points = dailyData.map((day, i) => `${xFor(i)},${innerHeight - day.aiRate * innerHeight}`).join(' ');
+		const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+		polyline.setAttribute('points', points);
+		polyline.setAttribute('fill', 'none');
+		polyline.setAttribute('stroke', asCssVariable(chartsBlue));
+		polyline.setAttribute('stroke-width', '2');
+		polyline.setAttribute('stroke-linejoin', 'round');
+		polyline.setAttribute('stroke-linecap', 'round');
+		g.appendChild(polyline);
+
+		// Draw dots
+		dailyData.forEach((day, i) => {
+			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			circle.setAttribute('cx', `${xFor(i)}`);
+			circle.setAttribute('cy', `${innerHeight - day.aiRate * innerHeight}`);
+			circle.setAttribute('r', '2.5');
+			circle.setAttribute('fill', asCssVariable(chartsBlue));
+			g.appendChild(circle);
+		});
+
+		// X-axis labels
 		const minLabelSpacing = 40;
-		const totalWidth = totalBarSpace;
-		const maxLabels = Math.max(2, Math.floor(totalWidth / minLabelSpacing));
-		const labelStep = Math.max(1, Math.ceil(barCount / maxLabels));
+		const maxLabels = Math.max(2, Math.floor(innerWidth / minLabelSpacing));
+		const labelStep = Math.max(1, Math.ceil(n / maxLabels));
 
 		dailyData.forEach((day, i) => {
-			const x = startX + i * (barWidth + gap);
-			const barHeight = day.aiRate * innerHeight;
-			const y = innerHeight - barHeight;
-
-			// Bar for AI rate
-			const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-			rect.setAttribute('x', `${x}`);
-			rect.setAttribute('y', `${y}`);
-			rect.setAttribute('width', `${barWidth}`);
-			rect.setAttribute('height', `${Math.max(1, barHeight)}`);
-			rect.setAttribute('fill', asCssVariable(chartsBlue));
-			rect.setAttribute('rx', '2');
-			g.appendChild(rect);
-
-			// X-axis label - only show at calculated intervals to avoid overlap
+			const x = xFor(i);
 			const isFirst = i === 0;
-			const isLast = i === barCount - 1;
+			const isLast = i === n - 1;
 			const isAtInterval = i % labelStep === 0;
 
-			if (isFirst || isLast || (isAtInterval && barCount > 2)) {
-				// Skip middle labels if they would be too close to first/last
+			if (isFirst || isLast || (isAtInterval && n > 2)) {
 				if (!isFirst && !isLast) {
-					const distFromFirst = i * (barWidth + gap);
-					const distFromLast = (barCount - 1 - i) * (barWidth + gap);
-					if (distFromFirst < minLabelSpacing || distFromLast < minLabelSpacing) {
-						return; // Skip this label
+					if (x - xFor(0) < minLabelSpacing || xFor(n - 1) - x < minLabelSpacing) {
+						return;
 					}
 				}
 
 				const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-				label.setAttribute('x', `${x + barWidth / 2}`);
+				label.setAttribute('x', `${x}`);
 				label.setAttribute('y', `${innerHeight + 12}`);
 				label.setAttribute('text-anchor', 'middle');
 				label.setAttribute('fill', asCssVariable(chartsForeground));
@@ -220,44 +220,41 @@ export function createAiStatsChart(
 	}
 
 	function renderSessionsView() {
-		const sessionCount = sessionsData.length;
-		const barWidth = Math.min(8, (innerWidth - (sessionCount - 1) * 1) / sessionCount);
-		const gap = 1;
-		const totalBarSpace = sessionCount * barWidth + (sessionCount - 1) * gap;
-		const startX = (innerWidth - totalBarSpace) / 2;
+		const n = sessionsData.length;
 
-		sessionsData.forEach((session, i) => {
+		const xFor = (i: number) => n === 1 ? innerWidth / 2 : i / (n - 1) * innerWidth;
+		const rateFor = (session: ISessionData) => {
 			const total = session.aiCharacters + session.typedCharacters;
-			const aiRate = total > 0 ? session.aiCharacters / total : 0;
-			const x = startX + i * (barWidth + gap);
-			const barHeight = aiRate * innerHeight;
-			const y = innerHeight - barHeight;
+			return total > 0 ? session.aiCharacters / total : 0;
+		};
 
-			// Bar for AI rate
-			const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-			rect.setAttribute('x', `${x}`);
-			rect.setAttribute('y', `${y}`);
-			rect.setAttribute('width', `${barWidth}`);
-			rect.setAttribute('height', `${Math.max(1, barHeight)}`);
-			rect.setAttribute('fill', asCssVariable(chartsBlue));
-			rect.setAttribute('rx', '1');
-			g.appendChild(rect);
-		});
+		// Draw line
+		const points = sessionsData.map((session, i) => `${xFor(i)},${innerHeight - rateFor(session) * innerHeight}`).join(' ');
+		const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+		polyline.setAttribute('points', points);
+		polyline.setAttribute('fill', 'none');
+		polyline.setAttribute('stroke', asCssVariable(chartsBlue));
+		polyline.setAttribute('stroke-width', '2');
+		polyline.setAttribute('stroke-linejoin', 'round');
+		polyline.setAttribute('stroke-linecap', 'round');
+		g.appendChild(polyline);
 
-		// X-axis labels: only show first and last to avoid overlap
-		// Each label is roughly 40px wide (e.g., "Jan 15")
-		const minLabelSpacing = 40;
-
-		if (sessionCount === 0) {
-			return;
+		// Draw dots (only if sessions are few enough to be visible)
+		if (n <= 30) {
+			sessionsData.forEach((session, i) => {
+				const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+				circle.setAttribute('cx', `${xFor(i)}`);
+				circle.setAttribute('cy', `${innerHeight - rateFor(session) * innerHeight}`);
+				circle.setAttribute('r', '2');
+				circle.setAttribute('fill', asCssVariable(chartsBlue));
+				g.appendChild(circle);
+			});
 		}
 
-		// Always show first label
-		const firstSession = sessionsData[0];
-		const firstX = startX;
-		const firstDate = new Date(firstSession.startTime);
+		// X-axis labels: only show first and last
+		const firstDate = new Date(sessionsData[0].startTime);
 		const firstLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-		firstLabel.setAttribute('x', `${firstX + barWidth / 2}`);
+		firstLabel.setAttribute('x', `${xFor(0)}`);
 		firstLabel.setAttribute('y', `${innerHeight + 12}`);
 		firstLabel.setAttribute('text-anchor', 'start');
 		firstLabel.setAttribute('fill', asCssVariable(chartsForeground));
@@ -265,13 +262,10 @@ export function createAiStatsChart(
 		firstLabel.textContent = firstDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 		g.appendChild(firstLabel);
 
-		// Show last label if there's enough space and more than 1 session
-		if (sessionCount > 1 && totalBarSpace >= minLabelSpacing) {
-			const lastSession = sessionsData[sessionCount - 1];
-			const lastX = startX + (sessionCount - 1) * (barWidth + gap);
-			const lastDate = new Date(lastSession.startTime);
+		if (n > 1) {
+			const lastDate = new Date(sessionsData[n - 1].startTime);
 			const lastLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-			lastLabel.setAttribute('x', `${lastX + barWidth / 2}`);
+			lastLabel.setAttribute('x', `${xFor(n - 1)}`);
 			lastLabel.setAttribute('y', `${innerHeight + 12}`);
 			lastLabel.setAttribute('text-anchor', 'end');
 			lastLabel.setAttribute('fill', asCssVariable(chartsForeground));
