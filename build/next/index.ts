@@ -9,7 +9,7 @@ import * as path from 'path';
 import { promisify } from 'util';
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
-import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
+import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLSTracked } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import product from '../../product.json' with { type: 'json' };
@@ -885,6 +885,8 @@ ${tslib}`,
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
 	// Map from JS file path to pre-mangle content + edits, for source map adjustment
 	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Map from JS file path to pre-NLS content + edits, for source map adjustment
+	const nlsPostEdits = new Map<string, { preNLSCode: string; edits: readonly import('./nls-plugin.ts').NLSTextEdit[] }>();
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -911,9 +913,15 @@ ${tslib}`,
 					}
 				}
 
-				// Apply NLS post-processing if enabled (JS only)
+				// Apply NLS post-processing if enabled (JS only).
+				// Track the edits so the source map can be adjusted to match the new column positions.
 				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
+					const preNLSCode = content;
+					const nlsResult = postProcessNLSTracked(content, indexMap, preserveEnglish);
+					content = nlsResult.code;
+					if (nlsResult.edits.length > 0) {
+						nlsPostEdits.set(file.path, { preNLSCode, edits: nlsResult.edits });
+					}
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
@@ -931,13 +939,22 @@ ${tslib}`,
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {
-				// Source maps may need adjustment if private fields were mangled
+				// Source maps need adjustment if private fields were mangled or NLS placeholders replaced.
+				// Apply each adjustment in sequence: mangle first (relative to raw esbuild output),
+				// then NLS (relative to the mangled output), so column positions stay accurate.
 				const jsPath = file.path.replace(/\.map$/, '');
-				const editInfo = mangleEdits.get(jsPath);
-				if (editInfo) {
-					const mapJson = JSON.parse(file.text);
-					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
-					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
+				const mangleInfo = mangleEdits.get(jsPath);
+				const nlsInfo = nlsPostEdits.get(jsPath);
+
+				if (mangleInfo || nlsInfo) {
+					let mapJson = JSON.parse(file.text);
+					if (mangleInfo) {
+						mapJson = adjustSourceMap(mapJson, mangleInfo.preMangleCode, mangleInfo.edits);
+					}
+					if (nlsInfo) {
+						mapJson = adjustSourceMap(mapJson, nlsInfo.preNLSCode, nlsInfo.edits);
+					}
+					await fs.promises.writeFile(file.path, JSON.stringify(mapJson));
 				} else {
 					await fs.promises.writeFile(file.path, file.contents);
 				}

@@ -228,7 +228,7 @@ Two categories of corruption:
 
 ### Not Yet Fixed
 
-**`postProcessNLS` column drift** - Replaces NLS placeholders with short indices in bundled output without updating `.map` files. Shifts columns but never lines, so line-level debugging and crash reporting work correctly. Fixing would require tracking replacement offsets through regex matches and adjusting the source map, similar to `adjustSourceMap`.
+*(All previously identified source map issues have been fixed.)*
 
 ### Key Technical Details
 
