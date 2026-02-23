@@ -8,7 +8,7 @@ import * as esbuild from 'esbuild';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { SourceMapConsumer } from 'source-map';
+import { type RawSourceMap, SourceMapConsumer } from 'source-map';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from '../nls-plugin.ts';
 
 // analyzeLocalizeCalls requires the import path to end with `/nls`
@@ -23,7 +23,7 @@ const NLS_STUB = [
 
 interface BundleResult {
 	js: string;
-	mapJson: any;
+	mapJson: RawSourceMap;
 	map: SourceMapConsumer;
 	cleanup: () => void;
 }

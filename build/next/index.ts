@@ -896,12 +896,9 @@ ${tslib}`,
 			if (file.path.endsWith('.js') || file.path.endsWith('.css')) {
 				let content = file.text;
 
-				// Apply NLS post-processing if enabled (JS only)
-				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
-				}
-
-				// Convert native #private fields to regular properties.
+				// Convert native #private fields to regular properties BEFORE NLS
+				// post-processing, so that the edit offsets align with esbuild's
+				// source map coordinate system (both reference the raw esbuild output).
 				// Skip extension host bundles - they expose API surface to extensions
 				// where true encapsulation matters more than the perf gain.
 				if (file.path.endsWith('.js') && doManglePrivates && !isExtensionHostBundle(file.path)) {
@@ -912,6 +909,11 @@ ${tslib}`,
 						mangleStats.push({ file: path.relative(path.join(REPO_ROOT, outDir), file.path), result: mangleResult });
 						mangleEdits.set(file.path, { preMangleCode, edits: mangleResult.edits });
 					}
+				}
+
+				// Apply NLS post-processing if enabled (JS only)
+				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
+					content = postProcessNLS(content, indexMap, preserveEnglish);
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured

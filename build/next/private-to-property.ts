@@ -272,15 +272,18 @@ export function adjustSourceMap(
 		const lineEdits = editsByLine.get(mapping.generatedLine - 1); // 0-based for our data
 		const adjustedCol = adjustColumn(mapping.generatedColumn, lineEdits);
 
-		const newMapping: Mapping = {
-			generated: { line: mapping.generatedLine, column: adjustedCol },
-			original: { line: mapping.originalLine, column: mapping.originalColumn },
-			source: mapping.source,
-		};
-		if (mapping.name !== null) {
-			newMapping.name = mapping.name;
+		// Some mappings may be unmapped (no original position/source) - skip those.
+		if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
+			const newMapping: Mapping = {
+				generated: { line: mapping.generatedLine, column: adjustedCol },
+				original: { line: mapping.originalLine, column: mapping.originalColumn },
+				source: mapping.source,
+			};
+			if (mapping.name !== null) {
+				newMapping.name = mapping.name;
+			}
+			generator.addMapping(newMapping);
 		}
-		generator.addMapping(newMapping);
 	});
 
 	return JSON.parse(generator.toString());
