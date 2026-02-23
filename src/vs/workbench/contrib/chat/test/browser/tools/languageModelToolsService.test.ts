@@ -2222,6 +2222,27 @@ suite('LanguageModelToolsService', () => {
 		assert.deepStrictEqual(fullReferenceNames, expectedNames, 'getFullReferenceNames should return correct full reference names');
 	});
 
+	test('tools in tool sets without canBeReferencedInPrompt are not prompt-referenceable', () => {
+		const toolData: IToolData = {
+			id: 'askQuestionsTool',
+			toolReferenceName: 'askQuestions',
+			modelDescription: 'Ask clarifying questions',
+			displayName: 'Ask Questions',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolData));
+		store.add(service.agentToolSet.addTool(toolData));
+
+		const promptReferenceableTools = Array.from(service.getAllToolsIncludingDisabled())
+			.filter(tool => tool.canBeReferencedInPrompt);
+
+		assert.ok(!promptReferenceableTools.includes(toolData), 'tool should not be prompt-referenceable without canBeReferencedInPrompt');
+
+		const toolSetTools = Array.from(service.agentToolSet.getTools());
+		assert.ok(toolSetTools.some(tool => tool.id === toolData.id), 'tool should remain available within its tool set');
+	});
+
 	test('getDeprecatedFullReferenceNames', () => {
 		setupToolsForTest(service, store);
 
