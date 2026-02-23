@@ -79,4 +79,4 @@ Licensed under the [MIT](LICENSE.txt) license.
 
 ## Contributors
 
-- bpasero
+- kai
