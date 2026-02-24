@@ -32,6 +32,7 @@ import { PANEL_BORDER } from '../../../../common/theme.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { McpListWidget } from './mcpListWidget.js';
+import { AICustomizationOverviewWidget } from './aiCustomizationOverviewWidget.js';
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY,
@@ -44,7 +45,7 @@ import {
 	SIDEBAR_MAX_WIDTH,
 	CONTENT_MIN_WIDTH,
 } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, overviewIcon, promptIcon, skillIcon, hookIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -132,6 +133,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sidebarContainer!: HTMLElement;
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
+	private overviewWidget: AICustomizationOverviewWidget | undefined;
+	private overviewContentContainer!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
@@ -204,6 +207,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Build sections from the workspace service configuration
 		const sectionInfo: Record<string, { label: string; icon: ThemeIcon }> = {
+			[AICustomizationManagementSection.Overview]: { label: localize('overview', "Overview"), icon: overviewIcon },
 			[AICustomizationManagementSection.Agents]: { label: localize('agents', "Agents"), icon: agentIcon },
 			[AICustomizationManagementSection.Skills]: { label: localize('skills', "Skills"), icon: skillIcon },
 			[AICustomizationManagementSection.Instructions]: { label: localize('instructions', "Instructions"), icon: instructionsIcon },
@@ -351,6 +355,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private createContent(): void {
 		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
+
+		// Container for overview content
+		this.overviewContentContainer = DOM.append(contentInner, $('.overview-content-container.ai-customization-overview'));
+		this.overviewContentContainer.style.display = 'none';
+
+		this.overviewWidget = this.editorDisposables.add(this.instantiationService.createInstance(AICustomizationOverviewWidget));
+		this.overviewWidget.render(this.overviewContentContainer);
+
+		this.editorDisposables.add(this.overviewWidget.onDidSelectSection(section => {
+			this.selectSection(section);
+			const index = this.sections.findIndex(s => s.id === section);
+			if (index >= 0) {
+				this.sectionsList.setSelection([index]);
+			}
+		}));
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
