@@ -1037,7 +1037,6 @@ suite('ComputeAutomaticInstructions', () => {
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
-			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
 			testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, {
 				[AGENTS_SOURCE_FOLDER]: true,
 				'.claude/agents': true,
@@ -1160,9 +1159,6 @@ suite('ComputeAutomaticInstructions', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Enable the config for custom agents
-			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
-
 			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
@@ -1249,48 +1245,6 @@ suite('ComputeAutomaticInstructions', () => {
 
 			assert.equal(xmlContents(agents[3], 'description')[0], 'Test agent 5');
 			assert.equal(xmlContents(agents[3], 'name')[0], `test-agent-5`);
-		});
-
-		test('should include only General Purpose agent when custom agents config is disabled', async () => {
-			const rootFolderName = 'agents-list-disabled-test';
-			const rootFolder = `/${rootFolderName}`;
-			const rootFolderUri = URI.file(rootFolder);
-
-			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
-
-			// Config for custom agents is NOT enabled (default is false)
-
-			await mockFiles(fileService, [
-				{
-					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
-					contents: [
-						'---',
-						'description: \'Test agent 1\'',
-						'---',
-						'Test agent content',
-					]
-				},
-			]);
-
-			const contextComputer = instaService.createInstance(
-				ComputeAutomaticInstructions,
-				ChatModeKind.Agent,
-				{ 'vscode_runSubagent': true },
-				['*']
-			);
-			const variables = new ChatRequestVariableSet();
-
-			await contextComputer.collect(variables, CancellationToken.None);
-
-			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
-			assert.equal(textVariables.length, 1, 'There should be one text variable for agents list');
-
-			const agentsList = xmlContents(textVariables[0].value, 'agents');
-			assert.equal(agentsList.length, 1, 'There should be one agents list');
-
-			const agents = xmlContents(agentsList[0], 'agent');
-			assert.equal(agents.length, 1, 'There should be only the General Purpose agent');
-			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
 		});
 
 		test('should include skills list when readFile tool available', async () => {

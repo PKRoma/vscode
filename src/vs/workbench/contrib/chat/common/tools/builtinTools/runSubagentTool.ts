@@ -12,7 +12,6 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
@@ -77,8 +76,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IConfigurationService _configurationService: IConfigurationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -191,7 +188,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					modeInstructions = instructions && {
 						name: subAgentName,
 						content: instructions.content,
-						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
+						toolReferences: this.languageModelToolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,
 					};
 				} else {

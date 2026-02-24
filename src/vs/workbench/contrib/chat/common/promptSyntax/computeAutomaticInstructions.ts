@@ -26,7 +26,7 @@ import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { GeneralPurposeAgentName } from '../tools/builtinTools/runSubagentTool.js';
 
@@ -404,30 +404,28 @@ export class ComputeAutomaticInstructions {
 			entries.push(`<description>Full-capability agent for complex multi-step tasks requiring the complete toolset and high-quality reasoning. Has access to all tools. Inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
 			entries.push('</agent>');
 
-			if (this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
-				const canUseAgent = (() => {
-					if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-						return (agent: ICustomAgent) => agent.visibility.agentInvocable;
-					} else {
-						const subagents = this._enabledSubagents;
-						return (agent: ICustomAgent) => subagents.includes(agent.name);
+			const canUseAgent = (() => {
+				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
+					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
+				} else {
+					const subagents = this._enabledSubagents;
+					return (agent: ICustomAgent) => subagents.includes(agent.name);
+				}
+			})();
+			const agents = await this._promptsService.getCustomAgents(token);
+			for (const agent of agents) {
+				if (canUseAgent(agent)) {
+					entries.push('<agent>');
+					entries.push(`<name>${agent.name}</name>`);
+					if (agent.description) {
+						entries.push(`<description>${agent.description}</description>`);
 					}
-				})();
-				const agents = await this._promptsService.getCustomAgents(token);
-				for (const agent of agents) {
-					if (canUseAgent(agent)) {
-						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
-						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
-						}
-						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
-						}
-						entries.push('</agent>');
-						if (isInClaudeAgentsFolder(agent.uri)) {
-							telemetryEvent.claudeAgentsCount++;
-						}
+					if (agent.argumentHint) {
+						entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+					}
+					entries.push('</agent>');
+					if (isInClaudeAgentsFolder(agent.uri)) {
+						telemetryEvent.claudeAgentsCount++;
 					}
 				}
 			}

@@ -8,7 +8,6 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { RunSubagentTool, GeneralPurposeAgentName } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
@@ -26,7 +25,6 @@ suite('RunSubagentTool', () => {
 		customAgents?: ICustomAgent[];
 	}) {
 		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-		const configService = new TestConfigurationService();
 		const promptsService = new MockPromptsService();
 		if (opts?.customAgents) {
 			promptsService.setCustomModes(opts.customAgents);
@@ -38,8 +36,6 @@ suite('RunSubagentTool', () => {
 			mockToolsService,
 			{} as ILanguageModelsService,
 			new NullLogService(),
-			mockToolsService,
-			configService,
 			promptsService,
 			{} as IInstantiationService,
 		));
@@ -285,7 +281,6 @@ suite('RunSubagentTool', () => {
 			customAgents?: ICustomAgent[];
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
 			const promptsService = new MockPromptsService();
 			if (opts.customAgents) {
 				promptsService.setCustomModes(opts.customAgents);
@@ -306,8 +301,6 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				mockLanguageModelsService as ILanguageModelsService,
 				new NullLogService(),
-				mockToolsService,
-				configService,
 				promptsService,
 				{} as IInstantiationService,
 			));
