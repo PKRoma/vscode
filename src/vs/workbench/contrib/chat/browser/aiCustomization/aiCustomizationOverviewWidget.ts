@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, clearNode, Dimension, EventType } from '../../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -35,29 +33,6 @@ const createCommands: Record<AICustomizationManagementSection, string | undefine
 	[AICustomizationManagementSection.Overview]: undefined
 };
 
-/**
- * Journey steps ordered by impact (80/20 Rule):
- * Instructions (50% of value) -> Prompts -> Agents -> Advanced (Skills, MCP, Hooks)
- */
-interface IJourneyStep {
-	readonly section: AICustomizationManagementSection;
-	readonly icon: ThemeIcon;
-	readonly title: string;
-	readonly description: string;
-	readonly ctaLabel: string;
-	readonly docUrl: string;
-}
-
-/**
- * Advanced sub-items grouped into the collapsible final step.
- */
-interface IAdvancedSubItem {
-	readonly section: AICustomizationManagementSection;
-	readonly icon: ThemeIcon;
-	readonly label: string;
-	readonly ctaLabel: string;
-}
-
 /** Sections ordered by 80/20 priority for dashboard cards */
 const DASHBOARD_SECTIONS = [
 	AICustomizationManagementSection.Instructions,
@@ -79,16 +54,6 @@ export class AICustomizationOverviewWidget extends Disposable {
 	private readonly counts = new Map<AICustomizationManagementSection, number | undefined>();
 	private readonly badges = new Map<AICustomizationManagementSection, HTMLElement>();
 	private readonly _sectionCards = new Map<AICustomizationManagementSection, HTMLElement>();
-	private currentMode: 'welcome' | 'dashboard' | undefined;
-	private _advancedExpanded = false;
-
-	private get totalCount(): number {
-		let total = 0;
-		for (const count of this.counts.values()) {
-			total += count ?? 0;
-		}
-		return total;
-	}
 
 	private get activeTypeCount(): number {
 		let active = 0;
@@ -125,21 +90,12 @@ export class AICustomizationOverviewWidget extends Disposable {
 		this.container.role = 'region';
 		this.container.tabIndex = -1;
 		this.container.ariaLabel = localize('aiCustomizationOverview', "AI Customization Overview");
-		// Fetch counts first so we render the correct mode immediately,
-		// avoiding a flash from welcome → dashboard.
 		this.refresh();
 	}
 
 	async refresh(): Promise<void> {
 		await this.refreshCounts();
-		const newMode = this.totalCount <= 1 ? 'welcome' : 'dashboard';
-		if (newMode !== this.currentMode) {
-			this.renderContent();
-		} else {
-			for (const [section, count] of this.counts) {
-				this.updateCountBadge(section, count);
-			}
-		}
+		this.renderContent();
 	}
 
 	private updateCountBadge(section: AICustomizationManagementSection, count: number | undefined): void {
@@ -175,9 +131,9 @@ export class AICustomizationOverviewWidget extends Disposable {
 
 	private _getSectionDescription(section: AICustomizationManagementSection): string {
 		switch (section) {
-			case AICustomizationManagementSection.Instructions: return localize('descInstructions', "Define coding conventions, preferred libraries, and project structure");
-			case AICustomizationManagementSection.Prompts: return localize('descPrompts', "Build reusable prompts for tasks you repeat every day");
-			case AICustomizationManagementSection.Agents: return localize('descAgents', "Give Copilot personas for code review, architecture, or testing");
+			case AICustomizationManagementSection.Instructions: return localize('descInstructions', "Teach Copilot your coding standards once and keep every session aligned");
+			case AICustomizationManagementSection.Prompts: return localize('descPrompts', "Package repeatable workflows into reusable slash-command prompts");
+			case AICustomizationManagementSection.Agents: return localize('descAgents', "Create specialist collaborators for review, architecture, and testing");
 			case AICustomizationManagementSection.Skills: return localize('descSkills', "Folders of instructions Copilot loads when relevant");
 			case AICustomizationManagementSection.McpServers: return localize('descMCP', "Connect external tools and services to Copilot");
 			case AICustomizationManagementSection.Hooks: return localize('descHooks', "Automate prompts at specific lifecycle events");
@@ -185,56 +141,40 @@ export class AICustomizationOverviewWidget extends Disposable {
 		}
 	}
 
-	private _getJourneySteps(): IJourneyStep[] {
-		return [
-			{
-				section: AICustomizationManagementSection.Instructions,
-				icon: AICustomizationIcons.instructionsIcon,
-				title: localize('stepInstructionsTitle', "Set Your Standards"),
-				description: localize('stepInstructionsDesc', "Define coding conventions, preferred libraries, and project structure. This single file eliminates most friction with Copilot."),
-				ctaLabel: localize('generateInstructionsCta', "Generate Instructions"),
-				docUrl: 'https://code.visualstudio.com/docs/copilot/copilot-customization',
-			},
-			{
-				section: AICustomizationManagementSection.Prompts,
-				icon: AICustomizationIcons.promptIcon,
-				title: localize('stepPromptsTitle', "Automate Your Workflows"),
-				description: localize('stepPromptsDesc', "Build reusable prompts for tasks you repeat every day -- code reviews, documentation, test generation."),
-				ctaLabel: localize('createPrompt', "Create Prompt"),
-				docUrl: 'https://code.visualstudio.com/docs/copilot/prompt-files',
-			},
-			{
-				section: AICustomizationManagementSection.Agents,
-				icon: AICustomizationIcons.agentIcon,
-				title: localize('stepAgentsTitle', "Create Specialist AI"),
-				description: localize('stepAgentsDesc', "Give Copilot specialized personas with their own instructions, tools, and knowledge for specific roles."),
-				ctaLabel: localize('createAgent', "Create Agent"),
-				docUrl: 'https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview',
-			},
-		];
+	private _getSectionPitch(section: AICustomizationManagementSection): string {
+		switch (section) {
+			case AICustomizationManagementSection.Instructions: return localize('pitchInstructions', "Highest impact: remove most Copilot friction with one shared instruction file.");
+			case AICustomizationManagementSection.Prompts: return localize('pitchPrompts', "Turn recurring tasks into one-click, repeatable workflows.");
+			case AICustomizationManagementSection.Agents: return localize('pitchAgents', "Assign specialized personas with their own tools and context.");
+			case AICustomizationManagementSection.Skills: return localize('pitchSkills', "Bundle domain playbooks Copilot can load automatically.");
+			case AICustomizationManagementSection.McpServers: return localize('pitchMcp', "Bring external systems and internal tools directly into chat.");
+			case AICustomizationManagementSection.Hooks: return localize('pitchHooks', "Trigger custom behavior at key moments in every session.");
+			default: return '';
+		}
 	}
 
-	private _getAdvancedSubItems(): IAdvancedSubItem[] {
-		return [
-			{
-				section: AICustomizationManagementSection.Skills,
-				icon: AICustomizationIcons.skillIcon,
-				label: localize('sectionSkills', "Skills"),
-				ctaLabel: localize('createSkill', "Create Skill"),
-			},
-			{
-				section: AICustomizationManagementSection.McpServers,
-				icon: Codicon.server,
-				label: localize('sectionMCP', "MCP Servers"),
-				ctaLabel: localize('addMCPServer', "Add Server"),
-			},
-			{
-				section: AICustomizationManagementSection.Hooks,
-				icon: AICustomizationIcons.hookIcon,
-				label: localize('sectionHooks', "Hooks"),
-				ctaLabel: localize('createHook', "Create Hook"),
-			},
-		];
+	private _getSectionDocUrl(section: AICustomizationManagementSection): string {
+		switch (section) {
+			case AICustomizationManagementSection.Instructions: return 'https://code.visualstudio.com/docs/copilot/copilot-customization';
+			case AICustomizationManagementSection.Prompts: return 'https://code.visualstudio.com/docs/copilot/prompt-files';
+			case AICustomizationManagementSection.Agents: return 'https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview';
+			case AICustomizationManagementSection.Skills: return 'https://code.visualstudio.com/docs/copilot/copilot-customization';
+			case AICustomizationManagementSection.McpServers: return 'https://code.visualstudio.com/docs/copilot/chat/mcp-servers';
+			case AICustomizationManagementSection.Hooks: return 'https://code.visualstudio.com/docs/copilot/customization/overview';
+			default: return 'https://code.visualstudio.com/docs/copilot/customization/overview';
+		}
+	}
+
+	private _getSectionActionLabel(section: AICustomizationManagementSection): string {
+		switch (section) {
+			case AICustomizationManagementSection.Instructions: return localize('generateInstructionsCta', "Generate Instructions");
+			case AICustomizationManagementSection.Prompts: return localize('createPrompt', "Create Prompt");
+			case AICustomizationManagementSection.Agents: return localize('createAgent', "Create Agent");
+			case AICustomizationManagementSection.Skills: return localize('createSkill', "Create Skill");
+			case AICustomizationManagementSection.McpServers: return localize('addMCPServer', "Add Server");
+			case AICustomizationManagementSection.Hooks: return localize('createHook', "Create Hook");
+			default: return localize('createLabel', "Create");
+		}
 	}
 
 	private renderContent(): void {
@@ -242,232 +182,29 @@ export class AICustomizationOverviewWidget extends Disposable {
 			return;
 		}
 
-		this.currentMode = this.totalCount <= 1 ? 'welcome' : 'dashboard';
-
 		clearNode(this.container);
 		this._renderDisposables.clear();
 		this.badges.clear();
 		this._sectionCards.clear();
-
-		if (this.currentMode === 'welcome') {
-			this.renderWelcome(this.container);
-		} else {
-			this.renderDashboard(this.container);
-		}
-	}
-
-	private renderWelcome(parent: HTMLElement): void {
-		const welcome = append(parent, $('.ai-customization-overview-welcome'));
-		welcome.role = 'region';
-		welcome.ariaLabel = localize('welcomeRegion', "AI Customization Setup Guide");
-
-		const header = append(welcome, $('.welcome-header'));
-		append(header, $('h2.hero-heading')).textContent = localize('welcomeTitle', "Copilot already writes great code. Teach it yours.");
-		append(header, $('p.hero-subtitle')).textContent = localize('welcomeSubtitle', "Start with what matters most -- each step builds on the last.");
-
-		// Journey stepper
-		const stepper = append(welcome, $('.journey-stepper'));
-		stepper.role = 'list';
-		stepper.ariaLabel = localize('journeyStepperLabel', "Setup steps");
-
-		const steps = this._getJourneySteps();
-		let foundCurrent = false;
-
-		for (let i = 0; i < steps.length; i++) {
-			const step = steps[i];
-			const count = this.counts.get(step.section) ?? 0;
-			const isComplete = count > 0;
-			const isCurrent = !isComplete && !foundCurrent;
-			if (isCurrent) {
-				foundCurrent = true;
-			}
-
-			this._renderJourneyStep(stepper, step, i + 1, isComplete, isCurrent);
-		}
-
-		// Advanced collapsible section
-		this._renderAdvancedSection(welcome);
-
-		// Footer doc link
-		const footer = append(welcome, $('.overview-footer'));
-		const docLink = append(footer, $('a.overview-explore-link'));
-		docLink.textContent = localize('exploreDocsLink', "Explore the customization guide");
-		docLink.tabIndex = 0;
-		this._renderDisposables.add(addDisposableListener(docLink, EventType.CLICK, (e: MouseEvent) => {
-			this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/customization/overview'));
-			e.preventDefault();
-		}));
-		this._renderDisposables.add(addDisposableListener(docLink, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const keyboardEvent = new StandardKeyboardEvent(e);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/customization/overview'));
-				e.preventDefault();
-			}
-		}));
-	}
-
-	private _renderJourneyStep(parent: HTMLElement, step: IJourneyStep, stepNumber: number, isComplete: boolean, isCurrent: boolean): void {
-		const stepEl = append(parent, $('.journey-step'));
-		stepEl.role = 'listitem';
-		stepEl.classList.toggle('complete', isComplete);
-		stepEl.classList.toggle('current', isCurrent);
-
-		const statusLabel = isComplete
-			? localize('stepComplete', "Completed")
-			: (isCurrent ? localize('stepCurrent', "Current step") : localize('stepUpcoming', "Upcoming"));
-		stepEl.ariaLabel = localize('journeyStepAriaLabel', "Step {0}: {1}, {2}. {3}", stepNumber, step.title, statusLabel, step.description);
-
-		// Step indicator (number or check)
-		const indicator = append(stepEl, $('.step-indicator'));
-		indicator.ariaHidden = 'true';
-		if (isComplete) {
-			indicator.classList.add('complete');
-			append(indicator, renderIcon(Codicon.check));
-		} else {
-			indicator.textContent = `${stepNumber}`;
-		}
-
-		// Step content
-		const content = append(stepEl, $('.step-content'));
-		const stepHeader = append(content, $('.step-header'));
-
-		const iconContainer = append(stepHeader, $('.step-icon'));
-		iconContainer.ariaHidden = 'true';
-		append(iconContainer, renderIcon(step.icon));
-		append(stepHeader, $('span.step-title')).textContent = step.title;
-
-		append(content, $('p.step-description')).textContent = step.description;
-
-		// Actions row
-		const actions = append(content, $('.step-actions'));
-
-		const commandId = createCommands[step.section];
-		if (commandId) {
-			const ctaButton = append(actions, $('button.step-cta'));
-			ctaButton.ariaLabel = step.ctaLabel;
-			if (step.section === AICustomizationManagementSection.Instructions) {
-				ctaButton.classList.add('generate-instructions');
-				const sparkleIcon = append(ctaButton, renderIcon(Codicon.sparkle));
-				sparkleIcon.classList.add('step-cta-icon');
-				sparkleIcon.ariaHidden = 'true';
-				append(ctaButton, $('span')).textContent = step.ctaLabel;
-			} else {
-				ctaButton.textContent = step.ctaLabel;
-			}
-			this._renderDisposables.add(addDisposableListener(ctaButton, EventType.CLICK, () => {
-				this.commandService.executeCommand(commandId);
-			}));
-		}
-
-		const learnMore = append(actions, $('a.step-learn-more'));
-		learnMore.textContent = localize('learnMore', "Learn more");
-		learnMore.tabIndex = 0;
-		this._renderDisposables.add(addDisposableListener(learnMore, EventType.CLICK, (e: MouseEvent) => {
-			this.openerService.open(URI.parse(step.docUrl));
-			e.preventDefault();
-		}));
-		this._renderDisposables.add(addDisposableListener(learnMore, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const keyboardEvent = new StandardKeyboardEvent(e);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				this.openerService.open(URI.parse(step.docUrl));
-				e.preventDefault();
-			}
-		}));
-
-		// "View" link for completed steps to navigate
-		if (isComplete) {
-			const viewLink = append(actions, $('a.step-view-link'));
-			viewLink.textContent = localize('viewItems', "View");
-			viewLink.tabIndex = 0;
-			viewLink.role = 'button';
-			this._renderDisposables.add(addDisposableListener(viewLink, EventType.CLICK, () => {
-				this._onDidSelectSection.fire(step.section);
-			}));
-			this._renderDisposables.add(addDisposableListener(viewLink, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				const keyboardEvent = new StandardKeyboardEvent(e);
-				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-					this._onDidSelectSection.fire(step.section);
-					e.preventDefault();
-				}
-			}));
-		}
-	}
-
-	private _renderAdvancedSection(parent: HTMLElement): void {
-		const advanced = append(parent, $('.journey-advanced'));
-
-		const toggle = append(advanced, $('button.advanced-toggle'));
-		const toggleIcon = append(toggle, $('.toggle-icon'));
-		append(toggleIcon, renderIcon(this._advancedExpanded ? Codicon.chevronDown : Codicon.chevronRight));
-		append(toggle, $('span')).textContent = localize('advancedTitle', "Extend Your Reach");
-		toggle.ariaExpanded = `${this._advancedExpanded}`;
-		toggle.ariaLabel = localize('advancedToggleLabel', "Extend Your Reach -- connect external tools, add skills, and automate lifecycle events");
-
-		const body = append(advanced, $('.advanced-body'));
-		body.style.display = this._advancedExpanded ? '' : 'none';
-
-		this._renderDisposables.add(addDisposableListener(toggle, EventType.CLICK, () => {
-			this._advancedExpanded = !this._advancedExpanded;
-			body.style.display = this._advancedExpanded ? '' : 'none';
-			toggle.ariaExpanded = `${this._advancedExpanded}`;
-			clearNode(toggleIcon);
-			append(toggleIcon, renderIcon(this._advancedExpanded ? Codicon.chevronDown : Codicon.chevronRight));
-		}));
-
-		const subItems = this._getAdvancedSubItems();
-		for (const item of subItems) {
-			const row = append(body, $('.advanced-item'));
-
-			const iconEl = append(row, $('.advanced-item-icon'));
-			iconEl.ariaHidden = 'true';
-			append(iconEl, renderIcon(item.icon));
-
-			const label = append(row, $('span.advanced-item-label'));
-			label.textContent = item.label;
-
-			const count = this.counts.get(item.section) ?? 0;
-			const badge = append(row, $('span.advanced-item-badge'));
-			badge.textContent = `${count}`;
-			this.badges.set(item.section, badge);
-
-			// Navigate to section
-			const viewButton = append(row, $('a.advanced-item-action'));
-			viewButton.tabIndex = 0;
-			viewButton.role = 'button';
-
-			const commandId = createCommands[item.section];
-			if (count > 0) {
-				viewButton.textContent = localize('viewItems', "View");
-				this._renderDisposables.add(addDisposableListener(viewButton, EventType.CLICK, () => {
-					this._onDidSelectSection.fire(item.section);
-				}));
-				this._renderDisposables.add(addDisposableListener(viewButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const keyboardEvent = new StandardKeyboardEvent(e);
-					if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-						this._onDidSelectSection.fire(item.section);
-						e.preventDefault();
-					}
-				}));
-			} else if (commandId) {
-				viewButton.textContent = item.ctaLabel;
-				this._renderDisposables.add(addDisposableListener(viewButton, EventType.CLICK, () => {
-					this.commandService.executeCommand(commandId);
-				}));
-				this._renderDisposables.add(addDisposableListener(viewButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const keyboardEvent = new StandardKeyboardEvent(e);
-					if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-						this.commandService.executeCommand(commandId);
-						e.preventDefault();
-					}
-				}));
-			}
-		}
+		this.renderDashboard(this.container);
 	}
 
 	private renderDashboard(parent: HTMLElement): void {
 		const dashboard = append(parent, $('.ai-customization-overview-dashboard'));
 		dashboard.role = 'region';
 		dashboard.ariaLabel = localize('dashboardRegion', "AI Customization Dashboard");
+
+		const intro = append(dashboard, $('.dashboard-intro'));
+		append(intro, $('h2.dashboard-hero-heading')).textContent = localize('dashboardHeroHeading', "Copilot writes better code when it learns yours.");
+		append(intro, $('p.dashboard-hero-subtitle')).textContent = localize('dashboardHeroSubtitle', "Start with Instructions, then add Prompts and Agents to scale your best practices across every session.");
+
+		const introLink = append(intro, $('a.overview-explore-link'));
+		introLink.textContent = localize('exploreDocsLink', "Explore the customization guide");
+		introLink.setAttribute('href', this._getSectionDocUrl(AICustomizationManagementSection.Overview));
+		this._renderDisposables.add(addDisposableListener(introLink, EventType.CLICK, (e: MouseEvent) => {
+			this.openerService.open(URI.parse(this._getSectionDocUrl(AICustomizationManagementSection.Overview)));
+			e.preventDefault();
+		}));
 
 		// Progress header
 		const progressHeader = append(dashboard, $('.dashboard-progress'));
@@ -476,17 +213,18 @@ export class AICustomizationOverviewWidget extends Disposable {
 
 		// "What's Next" recommendation
 		this._renderWhatsNext(dashboard);
+		this._renderLearnMoreLinks(dashboard);
 
 		// Section cards grid
 		const sectionsGrid = append(dashboard, $('.section-cards'));
 
-		const sectionMeta: Record<string, { icon: ThemeIcon; label: string; description: string }> = {
-			[AICustomizationManagementSection.Instructions]: { icon: AICustomizationIcons.instructionsIcon, label: localize('sectionInstructions', "Instructions"), description: this._getSectionDescription(AICustomizationManagementSection.Instructions) },
-			[AICustomizationManagementSection.Prompts]: { icon: AICustomizationIcons.promptIcon, label: localize('sectionPrompts', "Prompts"), description: this._getSectionDescription(AICustomizationManagementSection.Prompts) },
-			[AICustomizationManagementSection.Agents]: { icon: AICustomizationIcons.agentIcon, label: localize('sectionAgents', "Agents"), description: this._getSectionDescription(AICustomizationManagementSection.Agents) },
-			[AICustomizationManagementSection.Skills]: { icon: AICustomizationIcons.skillIcon, label: localize('sectionSkills', "Skills"), description: this._getSectionDescription(AICustomizationManagementSection.Skills) },
-			[AICustomizationManagementSection.McpServers]: { icon: Codicon.server, label: localize('sectionMCP', "MCP Servers"), description: this._getSectionDescription(AICustomizationManagementSection.McpServers) },
-			[AICustomizationManagementSection.Hooks]: { icon: AICustomizationIcons.hookIcon, label: localize('sectionHooks', "Hooks"), description: this._getSectionDescription(AICustomizationManagementSection.Hooks) },
+		const sectionMeta: Record<string, { icon: ThemeIcon; label: string; description: string; pitch: string }> = {
+			[AICustomizationManagementSection.Instructions]: { icon: AICustomizationIcons.instructionsIcon, label: localize('sectionInstructions', "Instructions"), description: this._getSectionDescription(AICustomizationManagementSection.Instructions), pitch: this._getSectionPitch(AICustomizationManagementSection.Instructions) },
+			[AICustomizationManagementSection.Prompts]: { icon: AICustomizationIcons.promptIcon, label: localize('sectionPrompts', "Prompts"), description: this._getSectionDescription(AICustomizationManagementSection.Prompts), pitch: this._getSectionPitch(AICustomizationManagementSection.Prompts) },
+			[AICustomizationManagementSection.Agents]: { icon: AICustomizationIcons.agentIcon, label: localize('sectionAgents', "Agents"), description: this._getSectionDescription(AICustomizationManagementSection.Agents), pitch: this._getSectionPitch(AICustomizationManagementSection.Agents) },
+			[AICustomizationManagementSection.Skills]: { icon: AICustomizationIcons.skillIcon, label: localize('sectionSkills', "Skills"), description: this._getSectionDescription(AICustomizationManagementSection.Skills), pitch: this._getSectionPitch(AICustomizationManagementSection.Skills) },
+			[AICustomizationManagementSection.McpServers]: { icon: Codicon.server, label: localize('sectionMCP', "MCP Servers"), description: this._getSectionDescription(AICustomizationManagementSection.McpServers), pitch: this._getSectionPitch(AICustomizationManagementSection.McpServers) },
+			[AICustomizationManagementSection.Hooks]: { icon: AICustomizationIcons.hookIcon, label: localize('sectionHooks', "Hooks"), description: this._getSectionDescription(AICustomizationManagementSection.Hooks), pitch: this._getSectionPitch(AICustomizationManagementSection.Hooks) },
 		};
 
 		for (const sectionId of DASHBOARD_SECTIONS) {
@@ -508,6 +246,7 @@ export class AICustomizationOverviewWidget extends Disposable {
 			const textContainer = append(card, $('.card-info'));
 			append(textContainer, $('.card-title')).textContent = meta.label;
 			append(textContainer, $('.card-description')).textContent = meta.description;
+			append(textContainer, $('.card-pitch')).textContent = meta.pitch;
 
 			if (count !== undefined && count > 0) {
 				const badge = append(card, $('.count-badge'));
@@ -518,6 +257,27 @@ export class AICustomizationOverviewWidget extends Disposable {
 				getStarted.textContent = localize('getStarted', "Get started");
 				this.badges.set(sectionId, getStarted);
 			}
+		}
+	}
+
+	private _renderLearnMoreLinks(parent: HTMLElement): void {
+		const linksContainer = append(parent, $('.dashboard-learn-links'));
+		append(linksContainer, $('span.learn-links-label')).textContent = localize('learnMoreLabel', "Learn more:");
+
+		const learnSections = [
+			AICustomizationManagementSection.Instructions,
+			AICustomizationManagementSection.Prompts,
+			AICustomizationManagementSection.Agents,
+		];
+
+		for (const section of learnSections) {
+			const link = append(linksContainer, $('a.dashboard-learn-link'));
+			link.textContent = this._getSectionLabel(section);
+			link.setAttribute('href', this._getSectionDocUrl(section));
+			this._renderDisposables.add(addDisposableListener(link, EventType.CLICK, (e: MouseEvent) => {
+				this.openerService.open(URI.parse(this._getSectionDocUrl(section)));
+				e.preventDefault();
+			}));
 		}
 	}
 
@@ -560,11 +320,21 @@ export class AICustomizationOverviewWidget extends Disposable {
 
 		const commandId = createCommands[nextSection];
 		if (commandId) {
-			const cta = append(whatsNext, $('button.whats-next-cta'));
-			cta.textContent = localize('whatsNextCta', "Create {0}", this._getSectionLabel(nextSection));
-			cta.ariaLabel = localize('whatsNextCta', "Create {0}", this._getSectionLabel(nextSection));
+			const actions = append(whatsNext, $('.whats-next-actions'));
+
+			const cta = append(actions, $('button.whats-next-cta'));
+			cta.textContent = this._getSectionActionLabel(nextSection);
+			cta.ariaLabel = this._getSectionActionLabel(nextSection);
 			this._renderDisposables.add(addDisposableListener(cta, EventType.CLICK, () => {
 				this.commandService.executeCommand(commandId);
+			}));
+
+			const learnMore = append(actions, $('a.whats-next-learn-more'));
+			learnMore.textContent = localize('learnMore', "Learn more");
+			learnMore.setAttribute('href', this._getSectionDocUrl(nextSection));
+			this._renderDisposables.add(addDisposableListener(learnMore, EventType.CLICK, (e: MouseEvent) => {
+				this.openerService.open(URI.parse(this._getSectionDocUrl(nextSection)));
+				e.preventDefault();
 			}));
 		}
 	}
@@ -632,28 +402,12 @@ export class AICustomizationOverviewWidget extends Disposable {
 
 	getAccessibleDetails(): string {
 		const content: string[] = [];
-		if (this.currentMode === 'welcome') {
-			content.push(localize('overviewWelcomeAria', "AI Customization Setup Guide. Copilot already writes great code -- teach it your codebase with these steps."));
-			const steps = this._getJourneySteps();
-			for (let i = 0; i < steps.length; i++) {
-				const step = steps[i];
-				const count = this.counts.get(step.section) ?? 0;
-				const status = count > 0 ? localize('stepDone', "done") : localize('stepPending', "pending");
-				content.push(localize('stepStatus', "Step {0}: {1} ({2})", i + 1, step.title, status));
-			}
-			const subItems = this._getAdvancedSubItems();
-			content.push(localize('advancedSectionLabel', "Advanced: {0}", subItems.map(item => {
-				const count = this.counts.get(item.section) ?? 0;
-				return `${item.label} (${count})`;
-			}).join(', ')));
-		} else {
-			content.push(localize('overviewDashboardAriaV2', "AI Customization Dashboard. {0} of {1} customization types active.", this.activeTypeCount, DASHBOARD_SECTIONS.length));
-			for (const section of DASHBOARD_SECTIONS) {
-				const label = this._getSectionLabel(section);
-				const count = this.counts.get(section);
-				const countLabel = count === undefined ? localize('loading', "loading") : (count === 1 ? localize('oneItem', "1 item") : localize('manyItems', "{0} items", count));
-				content.push(`${label}: ${countLabel}`);
-			}
+		content.push(localize('overviewDashboardAriaV3', "AI Customization Dashboard. {0} of {1} customization types active.", this.activeTypeCount, DASHBOARD_SECTIONS.length));
+		for (const section of DASHBOARD_SECTIONS) {
+			const label = this._getSectionLabel(section);
+			const count = this.counts.get(section);
+			const countLabel = count === undefined ? localize('loading', "loading") : (count === 1 ? localize('oneItem', "1 item") : localize('manyItems', "{0} items", count));
+			content.push(`${label}: ${countLabel}`);
 		}
 		return content.join('\n');
 	}

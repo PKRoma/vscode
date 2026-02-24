@@ -685,6 +685,25 @@
 	padding: 24px 30px;
 }
 
+.ai-customization-overview-dashboard .dashboard-intro {
+	margin-bottom: 18px;
+}
+
+.ai-customization-overview-dashboard .dashboard-hero-heading {
+	font-size: 24px;
+	font-weight: 400;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+.ai-customization-overview-dashboard .dashboard-hero-subtitle {
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+	max-width: 760px;
+	margin-bottom: 10px;
+}
+
 /* Dashboard progress header */
 .ai-customization-overview-dashboard .dashboard-progress {
 	margin-bottom: 20px;
@@ -721,6 +740,13 @@
 	margin: 0 0 10px;
 }
 
+.ai-customization-overview-dashboard .whats-next-actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
 .ai-customization-overview-dashboard .whats-next-cta {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
@@ -740,6 +766,40 @@
 .ai-customization-overview-dashboard .whats-next-cta:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
+}
+
+.ai-customization-overview-dashboard .whats-next-learn-more {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-overview-dashboard .whats-next-learn-more:hover {
+	text-decoration: underline;
+}
+
+.ai-customization-overview-dashboard .dashboard-learn-links {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-bottom: 18px;
+	font-size: 12px;
+}
+
+.ai-customization-overview-dashboard .dashboard-learn-links .learn-links-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-overview-dashboard .dashboard-learn-links .dashboard-learn-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-overview-dashboard .dashboard-learn-links .dashboard-learn-link:hover {
+	text-decoration: underline;
 }
 
 /* Dashboard section cards grid */
@@ -809,6 +869,14 @@
 	font-size: 12px;
 	line-height: 1.4;
 	margin-top: 4px;
+}
+
+.ai-customization-overview-dashboard .card .card-pitch {
+	color: var(--vscode-foreground);
+	font-size: 11px;
+	line-height: 1.4;
+	margin-top: 6px;
+	opacity: 0.85;
 }
 
 .ai-customization-overview-dashboard .card .count-badge {
