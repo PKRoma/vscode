@@ -182,27 +182,33 @@ const TIP_CATALOG: ITipDefinition[] = [
 		onlyWhenModelIds: ['gpt-4.1'],
 	},
 	{
-		id: 'tip.createSlashCommands',
-		message: localize(
-			'tip.createSlashCommands',
-			"Tip: Use [/create-instruction](command:workbench.action.chat.generateInstruction), [/create-prompt](command:workbench.action.chat.generatePrompt), [/create-agent](command:workbench.action.chat.generateAgent), or [/create-skill](command:workbench.action.chat.generateSkill) to generate reusable agent customization files."
-		),
+		id: 'tip.createAgent',
+		message: localize('tip.createAgent', "Tip: Use [/create-agent](command:workbench.action.chat.generateAgent) to build a custom agent with its own persona, tools, and expertise — right from your conversation."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-			ChatContextKeys.hasUsedCreateSlashCommands.negate(),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		),
-		enabledCommands: [
-			'workbench.action.chat.generateInstruction',
-			'workbench.action.chat.generatePrompt',
-			'workbench.action.chat.generateAgent',
-			'workbench.action.chat.generateSkill',
-		],
-		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generateInstruction',
-			'workbench.action.chat.generatePrompt',
-			'workbench.action.chat.generateAgent',
-			'workbench.action.chat.generateSkill',
-		],
+		enabledCommands: ['workbench.action.chat.generateAgent'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.generateAgent', 'workbench.command.new.agent'],
+		excludeWhenPromptFilesExist: { promptType: PromptsType.agent, excludeUntilChecked: true },
+	},
+	{
+		id: 'tip.createPrompt',
+		message: localize('tip.createPrompt', "Tip: Use [/create-prompt](command:workbench.action.chat.generatePrompt) to turn a repetitive task into a reusable prompt file you can invoke anytime."),
+		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+		enabledCommands: ['workbench.action.chat.generatePrompt'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.generatePrompt'],
+	},
+	{
+		id: 'tip.createSkill',
+		message: localize('tip.createSkill', "Tip: Use [/create-skill](command:workbench.action.chat.generateSkill) to package a multi-step workflow the agent can load on demand."),
+		when: ContextKeyExpr.and(
+			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		),
+		enabledCommands: ['workbench.action.chat.generateSkill'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.generateSkill', 'workbench.command.new.skill'],
+		excludeWhenPromptFilesExist: { promptType: PromptsType.skill, excludeUntilChecked: true },
 	},
 	{
 		id: 'tip.agentMode',
@@ -247,22 +253,6 @@ const TIP_CATALOG: ITipDefinition[] = [
 		enabledCommands: ['workbench.action.chat.generateInstructions'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.generateInstructions'],
 		excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
-	},
-	{
-		id: 'tip.customAgent',
-		message: localize('tip.customAgent', "Tip: [Create a custom agent](command:workbench.command.new.agent) to define reusable personas with tailored instructions and tools for your workflow."),
-		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-		enabledCommands: ['workbench.command.new.agent'],
-		excludeWhenCommandsExecuted: ['workbench.command.new.agent'],
-		excludeWhenPromptFilesExist: { promptType: PromptsType.agent, excludeUntilChecked: true },
-	},
-	{
-		id: 'tip.skill',
-		message: localize('tip.skill', "Tip: [Create a skill](command:workbench.command.new.skill) to teach the agent specialized workflows, loaded only when relevant."),
-		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-		enabledCommands: ['workbench.command.new.skill'],
-		excludeWhenCommandsExecuted: ['workbench.command.new.skill'],
-		excludeWhenPromptFilesExist: { promptType: PromptsType.skill, excludeUntilChecked: true },
 	},
 	{
 		id: 'tip.messageQueueing',

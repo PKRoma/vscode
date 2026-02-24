@@ -846,53 +846,58 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded when no skill files exist');
 	});
 
-	test('shows tip.createSlashCommands when context key is false', () => {
+	test('shows tip.createAgent in local agent sessions', () => {
 		const service = createService();
-		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
 
-		// Dismiss tips until we find createSlashCommands or run out
 		let found = false;
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
 			if (!tip) {
 				break;
 			}
-			if (tip.id === 'tip.createSlashCommands') {
+			if (tip.id === 'tip.createAgent') {
 				found = true;
 				break;
 			}
 			service.dismissTip();
 		}
 
-		assert.ok(found, 'Should eventually show tip.createSlashCommands when context key is false');
+		assert.ok(found, 'Should eventually show tip.createAgent in a local agent session');
 	});
 
-	test('does not show tip.createSlashCommands in non-local chat sessions', () => {
+	test('shows tip.createPrompt in local sessions regardless of mode', () => {
 		const service = createService();
-		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
-		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'cloud');
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
 
+		let found = false;
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
 			if (!tip) {
 				break;
 			}
-			assert.notStrictEqual(tip.id, 'tip.createSlashCommands', 'Should not show tip.createSlashCommands in non-local sessions');
+			if (tip.id === 'tip.createPrompt') {
+				found = true;
+				break;
+			}
 			service.dismissTip();
 		}
+
+		assert.ok(found, 'Should eventually show tip.createPrompt in a local session');
 	});
 
-	test('does not show tip.createSlashCommands when context key is true', () => {
-		storageService.store('chat.tips.usedCreateSlashCommands', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	test('does not show tip.createAgent in non-local chat sessions', () => {
 		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'cloud');
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
 
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
 			if (!tip) {
 				break;
 			}
-			assert.notStrictEqual(tip.id, 'tip.createSlashCommands', 'Should not show tip.createSlashCommands when context key is true');
+			assert.notStrictEqual(tip.id, 'tip.createAgent', 'Should not show tip.createAgent in non-local sessions');
 			service.dismissTip();
 		}
 	});
