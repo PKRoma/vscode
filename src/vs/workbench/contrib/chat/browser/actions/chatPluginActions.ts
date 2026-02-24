@@ -19,7 +19,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
-import { IExtensionsViewPaneContainer, VIEWLET_ID } from '../../../extensions/common/extensions.js';
+import { extensionsFilterSubMenu, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from '../../../extensions/common/extensions.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
 
 const enum ManagePluginItemKind {
@@ -244,6 +244,30 @@ async function showManagePluginsQuickPick(
 	return result;
 }
 
+class BrowseAgentPluginsAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.browseAgentPlugins';
+
+	constructor() {
+		super({
+			id: BrowseAgentPluginsAction.ID,
+			title: localize2('browseAgentPlugins', 'Agent Plugins'),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
+			menu: [{
+				id: extensionsFilterSubMenu,
+				group: '1_predefined',
+				order: 2,
+				when: ChatContextKeys.Setup.hidden.negate(),
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
+	}
+}
+
 export function registerChatPluginActions() {
 	registerAction2(ManagePluginsAction);
+	registerAction2(BrowseAgentPluginsAction);
 }
