@@ -41,12 +41,14 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatModeService } from '../../common/chatModes.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { ChatSetupAnonymous } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
+import { GrowthSessionController, registerGrowthSession } from './chatSetupGrowthSession.js';
 import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, SetupAgent } from './chatSetupProviders.js';
 import { ChatSetup } from './chatSetupRunner.js';
 
@@ -71,6 +73,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -83,6 +87,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 
 		this.registerSetupAgents(context, controller);
+		this.registerGrowthSession(chatEntitlementService);
 		this.registerActions(context, requests, controller);
 		this.registerUrlLinkHandler();
 		this.checkExtensionInstallation(context);
@@ -125,9 +130,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						}
 
 						// Inline Agents
-						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
-						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, ChatModeKind.Ask, context, controller).disposable);
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, ChatModeKind.Ask, context, controller).disposable);
+						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, ChatModeKind.Ask, context, controller).disposable);
 					}
 
 					// Built-In Agent + Tool (unless installed, signed-in and enabled)
@@ -171,6 +176,37 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this._register(Event.runAndSubscribe(context.onDidChange, () => updateRegistration()));
 	}
 
+	private registerGrowthSession(chatEntitlementService: ChatEntitlementService): void {
+		const growthSessionDisposables = markAsSingleton(new MutableDisposable());
+
+		const updateGrowthSession = () => {
+			const experimentEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.GrowthNotificationEnabled) === true;
+			// Show for users who don't have the Copilot extension installed yet.
+			// Additional conditions (e.g., anonymous, entitlement) can be layered here.
+			const shouldShow = experimentEnabled && !chatEntitlementService.sentiment.installed;
+			if (shouldShow && !growthSessionDisposables.value) {
+				const disposables = new DisposableStore();
+				const controller = disposables.add(this.instantiationService.createInstance(GrowthSessionController));
+				if (!controller.isDismissed) {
+					disposables.add(registerGrowthSession(this.chatSessionsService, controller));
+					// Fully unregister when dismissed to prevent cached session from
+					// appearing during filtered model updates from other providers.
+					disposables.add(controller.onDidDismiss(() => {
+						growthSessionDisposables.clear();
+					}));
+					growthSessionDisposables.value = disposables;
+				} else {
+					disposables.dispose();
+				}
+			} else if (!shouldShow) {
+				growthSessionDisposables.clear();
+			}
+		};
+
+		this._register(chatEntitlementService.onDidChangeSentiment(() => updateGrowthSession()));
+		updateGrowthSession();
+	}
+
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
 
 		//#region Global Chat Setup Actions
@@ -204,7 +240,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const configurationService = accessor.get(IConfigurationService);
 
 				await context.update({ hidden: false });
-				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
+				configurationService.updateValue(ChatConfiguration.AIDisabled, false);
 
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();
@@ -429,7 +465,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.generateDocs' | 'chat.internal.generateTests', actualCommand: string): void {
+		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review', actualCommand: string): void {
 
 			CommandsRegistry.registerCommand(coreCommand, async accessor => {
 				const commandService = accessor.get(ICommandService);
@@ -456,9 +492,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 						break;
 					}
-					case 'chat.internal.review':
-					case 'chat.internal.generateDocs':
-					case 'chat.internal.generateTests': {
+					case 'chat.internal.review': {
 						const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 						if (result) {
 							await commandService.executeCommand(actualCommand);
@@ -470,8 +504,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
 		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
 		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
-		registerGenerateCodeCommand('chat.internal.generateDocs', 'github.copilot.chat.generateDocs');
-		registerGenerateCodeCommand('chat.internal.generateTests', 'github.copilot.chat.generateTests');
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
@@ -489,54 +521,29 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			when: internalGenerateCodeContext
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 			command: {
 				id: 'chat.internal.fix',
 				title: localize('fix', "Fix"),
 			},
-			group: '1_action',
-			order: 1,
+			group: '1_chat',
+			order: 5,
 			when: ContextKeyExpr.and(
 				internalGenerateCodeContext,
 				EditorContextKeys.readOnly.negate()
 			)
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 			command: {
 				id: 'chat.internal.review',
 				title: localize('review', "Code Review"),
 			},
-			group: '1_action',
-			order: 2,
+			group: '1_chat',
+			order: 6,
 			when: internalGenerateCodeContext
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-			command: {
-				id: 'chat.internal.generateDocs',
-				title: localize('generateDocs', "Generate Docs"),
-			},
-			group: '2_generate',
-			order: 1,
-			when: ContextKeyExpr.and(
-				internalGenerateCodeContext,
-				EditorContextKeys.readOnly.negate()
-			)
-		});
-
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-			command: {
-				id: 'chat.internal.generateTests',
-				title: localize('generateTests', "Generate Tests"),
-			},
-			group: '2_generate',
-			order: 2,
-			when: ContextKeyExpr.and(
-				internalGenerateCodeContext,
-				EditorContextKeys.readOnly.negate()
-			)
-		});
 	}
 
 	private registerUrlLinkHandler(): void {
@@ -632,8 +639,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'workbench.contrib.chatTeardown';
 
-	static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
-
 	constructor(
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -656,7 +661,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private handleChatDisabled(fromEvent: boolean): void {
-		const chatDisabled = this.configurationService.inspect(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY);
+		const chatDisabled = this.configurationService.inspect(ChatConfiguration.AIDisabled);
 		if (chatDisabled.value === true) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
 			if (fromEvent) {
@@ -671,7 +676,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY)) {
+			if (!e.affectsConfiguration(ChatConfiguration.AIDisabled)) {
 				return;
 			}
 
@@ -687,7 +692,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 			if (defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
-				this.configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
+				this.configurationService.updateValue(ChatConfiguration.AIDisabled, false);
 			}
 		}));
 	}
@@ -740,7 +745,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const preferencesService = accessor.get(IPreferencesService);
 
-				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY}` });
+				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatConfiguration.AIDisabled}` });
 			}
 		}
 

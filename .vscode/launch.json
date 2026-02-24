@@ -505,7 +505,7 @@
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
-			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
@@ -535,7 +535,7 @@
 			"request": "launch",
 			"name": "Run Unit Tests For Current File",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
-			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
@@ -571,7 +571,7 @@
 			"timeout": 240000,
 			"args": [
 				"-l",
-				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
+				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS"
 			],
 			"outFiles": [
 				"${cwd}/out/**/*.js"
@@ -599,6 +599,18 @@
 			"preLaunchTask": "Launch Monaco Editor Vite",
 			"presentation": {
 				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Component Explorer",
+			"type": "msedge",
+			"port": 9230,
+			"request": "launch",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Launch Component Explorer",
+			"presentation": {
+				"group": "1_component_explorer",
 				"order": 4
 			}
 		},

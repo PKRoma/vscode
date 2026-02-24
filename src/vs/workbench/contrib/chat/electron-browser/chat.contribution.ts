@@ -24,7 +24,10 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { IChatWidgetService } from '../browser/chat.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
+import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
+import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService/chatService.js';
@@ -32,6 +35,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
+import { OpenSessionsWindowAction } from './agentSessions/agentSessionsActions.js';
 
 class ChatCommandLineHandler extends Disposable {
 
@@ -43,7 +47,8 @@ class ChatCommandLineHandler extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -56,6 +61,14 @@ class ChatCommandLineHandler extends Disposable {
 			this.logService.trace('vscode:handleChatRequest', chatArgs);
 
 			this.prompt(chatArgs);
+		});
+
+		ipcRenderer.on('vscode:openChatSession', (_, ...args: unknown[]) => {
+			const sessionUriString = args[0] as string;
+			this.logService.trace('vscode:openChatSession', sessionUriString);
+
+			const sessionResource = URI.parse(sessionUriString);
+			this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		});
 	}
 
@@ -119,11 +132,12 @@ class ChatLifecycleHandler extends Disposable {
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IChatService private readonly chatService: IChatService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -132,13 +146,24 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			e.veto(this.chatService.requestInProgressObs.get(), localize('chatRequestInProgress', "A chat request is in progress."));
+			e.veto(this.hasNonCloudSessionInProgress(), localize('chatRequestInProgress', "A chat request is in progress."));
 		}));
 	}
 
+	private hasNonCloudSessionInProgress(): boolean {
+		return this.agentSessionsService.model.sessions.some(session =>
+			isSessionInProgressStatus(session.status) &&
+			session.providerType !== AgentSessionProviders.Cloud &&
+			!session.isArchived()
+		);
+	}
+
 	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		const running = this.chatService.requestInProgressObs.read(undefined);
-		if (!running) {
+		if (this.environmentService.enableSmokeTestDriver) {
+			return false;
+		}
+
+		if (!this.hasNonCloudSessionInProgress()) {
 			return false;
 		}
 
@@ -180,6 +205,7 @@ class ChatLifecycleHandler extends Disposable {
 	}
 }
 
+registerAction2(OpenSessionsWindowAction);
 registerAction2(StartVoiceChatAction);
 
 registerAction2(VoiceChatInChatViewAction);
