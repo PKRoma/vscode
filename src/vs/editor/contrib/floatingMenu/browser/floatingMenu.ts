@@ -82,28 +82,23 @@ export class FloatingEditorToolbarWidget extends Disposable {
 			return primary.filter(a => a.id !== Separator.ID);
 		});
 
-		const menuPrimaryActionIdObs = derived(reader => {
-			const primary = menuPrimaryActionsObs.read(reader);
-			return primary.length > 0 ? primary[0].id : undefined;
-		});
-
 		this.hasActions = derived(reader => menuPrimaryActionsObs.read(reader).length > 0);
 
 		this.element = h('div.floating-menu-overlay-widget').root;
 		this._register(toDisposable(() => this.element.remove()));
-
-		this._register(autorun(reader => {
-			const actionsCount = menuPrimaryActionsObs.read(reader).length;
-			this.element.classList.toggle('single-button', actionsCount === 1);
-		}));
 
 		// Set height explicitly to ensure that the floating menu element
 		// is rendered in the lower right corner at the correct position.
 		this.element.style.height = '26px';
 
 		this._register(autorun(reader => {
-			const hasActions = this.hasActions.read(reader);
-			const menuPrimaryActionId = menuPrimaryActionIdObs.read(reader);
+			const primaryActions = menuPrimaryActionsObs.read(reader);
+			const hasActions = primaryActions.length > 0;
+			const menuPrimaryActionId = hasActions ? primaryActions[0].id : undefined;
+
+			const isSingleButton = primaryActions.length === 1;
+			this.element.classList.toggle('single-button', isSingleButton);
+			this.element.style.height = isSingleButton ? '28px' : '26px';
 
 			if (!hasActions) {
 				return;
