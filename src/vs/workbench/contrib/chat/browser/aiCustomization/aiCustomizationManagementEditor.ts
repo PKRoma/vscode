@@ -134,6 +134,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
 	private overviewWidget: AICustomizationOverviewWidget | undefined;
+	private lastOverviewRefreshTime = 0;
 	private overviewContentContainer!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
@@ -232,6 +233,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		} else if (this.sections.length > 0) {
 			this.selectedSection = this.sections[0].id;
 		}
+	}
+
+	getOverviewWidget(): AICustomizationOverviewWidget | undefined {
+		return this.overviewWidget;
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -352,6 +357,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => {
 			if (e.elements.length > 0) {
 				this.selectSection(e.elements[0].id);
+			}
+		}));
+
+		this.editorDisposables.add(this.sectionsList.onDidOpen(e => {
+			if (e.element?.id === AICustomizationManagementSection.Overview) {
+				const now = Date.now();
+				if (now - this.lastOverviewRefreshTime > 100) {
+					this.overviewWidget?.refresh();
+					this.lastOverviewRefreshTime = now;
+				}
 			}
 		}));
 	}
@@ -486,6 +501,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Update Overview counts if selected
 		if (section === AICustomizationManagementSection.Overview) {
 			this.overviewWidget?.refresh();
+			this.lastOverviewRefreshTime = Date.now();
 		}
 
 		// Load items for the new section (only for prompts-based sections)

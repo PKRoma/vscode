@@ -1023,3 +1023,31 @@
 .ai-customization-management-editor .embedded-editor-container .monaco-editor {
 	border-radius: 4px;
 }
+
+/* Skeleton loading and reduced motion */
+.ai-customization-overview .count-badge.loading {
+	opacity: 0.5;
+	animation: badge-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+	0%, 100% { opacity: 0.5; }
+	50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ai-customization-overview .card,
+	.ai-customization-overview .create-button,
+	.ai-customization-management-editor .section-list-item,
+	.ai-customization-group-header .group-info,
+	.ai-customization-list-item .item-right,
+	.ai-customization-management-editor .editor-back-button,
+	.ai-customization-management-editor .editor-save-indicator {
+		transition: none !important;
+	}
+
+	.ai-customization-overview .count-badge.loading {
+		animation: none !important;
+	}
+}
+

@@ -81,6 +81,7 @@ export class AICustomizationOverviewWidget extends Disposable {
 	render(parent: HTMLElement): void {
 		this.container = parent;
 		this.container.role = 'region';
+		this.container.tabIndex = -1;
 		this.container.ariaLabel = localize('aiCustomizationOverview', "AI Customization Overview");
 		this.renderContent();
 	}
@@ -105,6 +106,8 @@ export class AICustomizationOverviewWidget extends Disposable {
 				badge.textContent = text;
 				badge.ariaLive = 'polite';
 			}
+			badge.classList.toggle('loading', count === undefined);
+
 			const card = this._sectionCards.get(section);
 			if (card) {
 				const sectionLabel = this._getSectionLabel(section);
@@ -333,5 +336,27 @@ export class AICustomizationOverviewWidget extends Disposable {
 
 	layout(dimension: Dimension): void {
 		// TODO: implement responsive layout (4.1)
+	}
+
+	focus(): void {
+		if (this.container) {
+			this.container.focus();
+		}
+	}
+
+	getAccessibleDetails(): string {
+		const content: string[] = [];
+		if (this.currentMode === 'welcome') {
+			content.push(localize('overviewWelcomeAria', "AI Customization Overview: Welcome mode. Shape how Copilot works with custom instructions, agents, and prompts."));
+			content.push(localize('overviewWelcomeInstructions', "Available actions: Create Instructions, Create Agent, or Create Prompt."));
+		} else {
+			content.push(localize('overviewDashboardAria', "AI Customization Overview: Dashboard mode."));
+			for (const [section, count] of this.counts) {
+				const label = this._getSectionLabel(section);
+				const countLabel = count === undefined ? localize('loading', "loading") : (count === 1 ? localize('oneItem', "1 item") : localize('manyItems', "{0} items", count));
+				content.push(`${label}: ${countLabel}`);
+			}
+		}
+		return content.join('\n');
 	}
 }

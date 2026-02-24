@@ -67,7 +67,8 @@ export const enum AccessibilityVerbositySettingId {
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
 	SourceControl = 'accessibility.verbosity.sourceControl',
-	Find = 'accessibility.verbosity.find'
+	Find = 'accessibility.verbosity.find',
+	AICustomizationHelp = 'accessibility.verbosity.aiCustomization'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -203,6 +204,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Find]: {
 			description: localize('verbosity.find', 'Provide information about how to access the find accessibility help menu when the find input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.AICustomizationHelp]: {
+			description: localize('verbosity.aiCustomizationHelp', 'Provide information about how to access the Chat Customization accessibility help menu when the editor is focused.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
