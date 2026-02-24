@@ -354,7 +354,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
 
 		const sources = es.merge(src, extensions)
-			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
+			.pipe(filter(process.env['VSCODE_BUILD_LOCAL_SOURCEMAPS'] ? ['**'] : ['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		let version = packageJson.version;
 		const quality = (product as { quality?: string }).quality;
@@ -692,7 +692,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		if (useEsbuildTranspile) {
 			const esbuildBundleTask = task.define(
 				`esbuild-bundle${dashed(platform)}${dashed(arch)}${dashed(minified)}`,
-				() => runEsbuildBundle(sourceFolderName, !!minified, true, 'desktop', minified ? `${sourceMappingURLBase}/core` : undefined)
+				() => runEsbuildBundle(sourceFolderName, !!minified, true, 'desktop', minified && !process.env['VSCODE_BUILD_LOCAL_SOURCEMAPS'] ? `${sourceMappingURLBase}/core` : undefined)
 			);
 			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				copyCodiconsTask,
