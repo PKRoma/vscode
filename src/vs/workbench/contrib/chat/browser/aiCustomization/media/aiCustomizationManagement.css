@@ -421,79 +421,246 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
-/* Overview View (compact snapshot) */
+/* Overview View */
 .ai-customization-overview {
+	overflow-y: auto;
+	height: 100%;
+}
+
+/* Welcome mode */
+.ai-customization-overview-welcome {
+	max-width: 700px;
+	margin: 0 auto;
+	padding: 40px 40px 30px;
+}
+
+.ai-customization-overview-welcome .hero-heading {
+	font-size: 26px;
+	font-weight: 400;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+.ai-customization-overview-welcome .hero-subtitle {
+	font-size: 14px;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+	max-width: 500px;
+	margin-bottom: 24px;
+}
+
+.ai-customization-overview-welcome .suggestion-cards {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
-	padding: 8px;
+	gap: 12px;
+	margin-top: 24px;
 }
 
-.ai-customization-overview .overview-sections {
+/* Dashboard mode */
+.ai-customization-overview-dashboard {
+	padding: 24px 30px;
+}
+
+.ai-customization-overview-dashboard .section-cards {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 8px;
+	gap: 12px;
 }
 
-
-.ai-customization-overview .overview-section {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 10px 12px;
-	background-color: var(--vscode-sideBar-background);
-	border: 1px solid var(--vscode-widget-border);
+/* Common Card Styles */
+.ai-customization-overview .card {
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
 	border-radius: 6px;
+	padding: 14px 18px;
 	cursor: pointer;
-	transition: background-color 0.1s ease;
-	flex: 1 1 120px;
-	min-width: 100px;
+	transition: background 0.15s ease, border-color 0.15s ease;
+	background: transparent;
+	display: flex;
+	align-items: flex-start;
+	text-align: left;
+	box-sizing: border-box;
+	font-family: inherit;
+	color: inherit;
 }
 
-.ai-customization-overview .overview-section:hover {
-	background-color: var(--vscode-list-hoverBackground);
+.ai-customization-overview .card:hover {
+	background: var(--vscode-welcomePage-tileHoverBackground);
 	border-color: var(--vscode-focusBorder);
 }
 
-.ai-customization-overview .overview-section:focus {
+.ai-customization-overview .card:focus,
+.ai-customization-overview .card:focus-within {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.ai-customization-overview .overview-section .section-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	opacity: 0.9;
-}
-
-.ai-customization-overview .overview-section .section-text {
+/* Base button inside card for navigation (Option B) */
+.ai-customization-overview .card .card-content-button {
 	flex: 1;
+	display: flex;
+	align-items: center;
+	padding: 0;
+	margin: 0;
+	background: transparent;
+	border: none;
+	text-align: left;
+	color: inherit;
+	font-family: inherit;
+	font-size: inherit;
+	cursor: pointer;
+	gap: 16px;
 	min-width: 0;
 }
 
-.ai-customization-overview .overview-section .section-label {
-	font-size: 12px;
+.ai-customization-overview .card .card-content-button:focus {
+	outline: none; /* Container card handles focus outline */
+}
+
+.ai-customization-overview .card .suggestion-icon,
+.ai-customization-overview .card .section-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ai-customization-overview .card .card-title {
 	font-weight: 500;
+	font-size: 14px;
 	color: var(--vscode-foreground);
+}
+
+.ai-customization-overview .card .card-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+/* Welcome Suggestion Cards Specifics */
+.ai-customization-overview-welcome .card {
+	gap: 16px;
+	align-items: center;
+}
+
+.ai-customization-overview-welcome .card .suggestion-icon {
+	font-size: 24px;
+	width: 24px;
+	height: 24px;
+}
+
+.ai-customization-overview-welcome .card .card-content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Dashboard Section Cards Specifics */
+.ai-customization-overview-dashboard .card {
+	flex: 1 1 calc(33.333% - 8px);
+	min-width: 200px;
+	gap: 12px;
+}
+
+.ai-customization-overview-dashboard .card .section-icon {
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+}
+
+.ai-customization-overview-dashboard .card .card-info {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.ai-customization-overview-dashboard .card .card-title {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
+.ai-customization-overview-dashboard .card .card-description {
+	margin-top: 4px;
+}
 
-
-.ai-customization-overview .overview-section .section-count {
+.ai-customization-overview-dashboard .card .count-badge {
 	flex-shrink: 0;
-	font-size: 9px;
-	font-weight: 600;
-	padding: 1px 5px;
-	background-color: var(--vscode-badge-background);
+	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
-	border-radius: 8px;
-	border: 1px solid transparent;
+	border-radius: 10px;
+	padding: 1px 7px;
+	font-size: 11px;
 	min-width: 14px;
 	text-align: center;
+	margin-left: 4px;
+}
+
+/* Create button styling */
+.ai-customization-overview .create-button {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 4px;
+	padding: 4px 12px;
+	cursor: pointer;
+	font-size: 12px;
+	transition: background 0.15s ease;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.ai-customization-overview .create-button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.ai-customization-overview .create-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+/* Footer and utility links */
+.ai-customization-overview .overview-footer {
+	margin-top: 32px;
+	padding-top: 16px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.ai-customization-overview .overview-explore-link {
+	font-size: 13px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-overview .overview-explore-link:hover {
+	text-decoration: underline;
+}
+
+/* Inline suggestions in dashboard */
+.ai-customization-overview-dashboard .overview-inline-suggestions {
+	margin-top: 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.ai-customization-overview-dashboard .overview-inline-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-overview-dashboard .overview-inline-suggestion a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-overview-dashboard .overview-inline-suggestion a:hover {
+	text-decoration: underline;
 }
 
 /* Content container visibility */
