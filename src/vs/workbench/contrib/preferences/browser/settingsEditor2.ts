@@ -2168,8 +2168,7 @@ class SyncControls extends Disposable {
 
 		const turnOnSyncButtonContainer = DOM.append(container, $('.turn-on-sync'));
 		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true, ...defaultButtonStyles }));
-		this.lastSyncedLabel = DOM.append(container, $('.last-synced-label'));
-		DOM.hide(this.lastSyncedLabel);
+		this.lastSyncedLabel = DOM.append(container, $('.last-
 
 		this.turnOnSyncButton.enabled = true;
 		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Backup and Sync Settings");
