@@ -444,6 +444,10 @@ function replaceInOutput(
 		return { content, edits: [] };
 	}
 
+	// Edits come from multiple regex passes and may not be in position order.
+	// Sort by start offset so the assembly below produces correct output.
+	replacements.sort((a, b) => a.start - b.start);
+
 	const parts: string[] = [];
 	let lastEnd = 0;
 	for (const edit of replacements) {
