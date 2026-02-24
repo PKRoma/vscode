@@ -37,7 +37,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IAccessibleViewRegistry, AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AICustomizationAccessibilityHelp } from './aiCustomizationAccessibilityHelp.js';
 
 //#region Editor Registration

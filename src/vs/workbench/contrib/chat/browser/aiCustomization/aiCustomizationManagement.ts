@@ -28,7 +28,7 @@ export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
-	CreateNewInstructions: 'aiCustomization.createNewInstructions',
+	CreateNewInstructions: 'workbench.action.chat.generateInstructions',
 	CreateNewPrompt: 'aiCustomization.createNewPrompt',
 } as const;
 

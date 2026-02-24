@@ -421,13 +421,13 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
-/* Overview View */
+/* ===== Overview View ===== */
 .ai-customization-overview {
 	overflow-y: auto;
 	height: 100%;
 }
 
-/* Welcome mode */
+/* --- Welcome Mode: Journey Stepper --- */
 .ai-customization-overview-welcome {
 	max-width: 700px;
 	margin: 0 auto;
@@ -446,29 +446,311 @@
 	line-height: 1.5;
 	color: var(--vscode-descriptionForeground);
 	max-width: 500px;
-	margin-bottom: 24px;
+	margin-bottom: 28px;
 }
 
-.ai-customization-overview-welcome .suggestion-cards {
+/* Journey Stepper */
+.ai-customization-overview-welcome .journey-stepper {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	margin-top: 24px;
+	gap: 0;
+	position: relative;
 }
 
-/* Dashboard mode */
+.ai-customization-overview-welcome .journey-step {
+	display: flex;
+	gap: 16px;
+	padding: 16px 0;
+	position: relative;
+}
+
+/* Connector line between steps */
+.ai-customization-overview-welcome .journey-step:not(:last-child)::before {
+	content: '';
+	position: absolute;
+	left: 15px;
+	top: 48px;
+	bottom: -16px;
+	width: 1px;
+	background: var(--vscode-widget-border);
+}
+
+/* Step indicator */
+.ai-customization-overview-welcome .step-indicator {
+	flex-shrink: 0;
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	font-weight: 500;
+	border: 2px solid var(--vscode-widget-border);
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	z-index: 1;
+	position: relative;
+}
+
+.ai-customization-overview-welcome .journey-step.current .step-indicator {
+	border-color: var(--vscode-textLink-foreground);
+	color: var(--vscode-textLink-foreground);
+}
+
+.ai-customization-overview-welcome .journey-step .step-indicator.complete {
+	border-color: var(--vscode-testing-iconPassed);
+	color: var(--vscode-testing-iconPassed);
+	background: transparent;
+}
+
+/* Step content */
+.ai-customization-overview-welcome .step-content {
+	flex: 1;
+	min-width: 0;
+	padding-top: 3px;
+}
+
+.ai-customization-overview-welcome .step-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.ai-customization-overview-welcome .step-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+}
+
+.ai-customization-overview-welcome .step-title {
+	font-weight: 500;
+	font-size: 14px;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-overview-welcome .journey-step.complete .step-title {
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-overview-welcome .step-description {
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 10px;
+}
+
+/* Step actions */
+.ai-customization-overview-welcome .step-actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.ai-customization-overview-welcome .step-cta {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 4px;
+	padding: 5px 14px;
+	cursor: pointer;
+	font-size: 12px;
+	font-family: inherit;
+	transition: background 0.15s ease;
+	white-space: nowrap;
+}
+
+.ai-customization-overview-welcome .step-cta:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.ai-customization-overview-welcome .step-cta:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.ai-customization-overview-welcome .journey-step.complete .step-cta {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.ai-customization-overview-welcome .step-cta.generate-instructions .step-cta-icon {
+	font-size: 13px;
+}
+
+.ai-customization-overview-welcome .step-learn-more,
+.ai-customization-overview-welcome .step-view-link {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-overview-welcome .step-learn-more:hover,
+.ai-customization-overview-welcome .step-view-link:hover {
+	text-decoration: underline;
+}
+
+/* --- Advanced Collapsible Section --- */
+.ai-customization-overview-welcome .journey-advanced {
+	margin-top: 8px;
+	border-top: 1px solid var(--vscode-widget-border);
+	padding-top: 12px;
+}
+
+.ai-customization-overview-welcome .advanced-toggle {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 500;
+	cursor: pointer;
+	padding: 4px 0;
+}
+
+.ai-customization-overview-welcome .advanced-toggle:hover {
+	color: var(--vscode-textLink-foreground);
+}
+
+.ai-customization-overview-welcome .advanced-toggle:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.ai-customization-overview-welcome .toggle-icon {
+	display: flex;
+	align-items: center;
+	font-size: 14px;
+}
+
+.ai-customization-overview-welcome .advanced-body {
+	padding: 8px 0 0 26px;
+}
+
+.ai-customization-overview-welcome .advanced-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 0;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-overview-welcome .advanced-item-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-overview-welcome .advanced-item-label {
+	flex: 1;
+}
+
+.ai-customization-overview-welcome .advanced-item-badge {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 10px;
+	padding: 1px 7px;
+	font-size: 11px;
+	min-width: 14px;
+	text-align: center;
+}
+
+.ai-customization-overview-welcome .advanced-item-action {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-overview-welcome .advanced-item-action:hover {
+	text-decoration: underline;
+}
+
+/* --- Dashboard Mode --- */
 .ai-customization-overview-dashboard {
 	padding: 24px 30px;
 }
 
+/* Dashboard progress header */
+.ai-customization-overview-dashboard .dashboard-progress {
+	margin-bottom: 20px;
+}
+
+.ai-customization-overview-dashboard .progress-text {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* What's Next recommendation */
+.ai-customization-overview-dashboard .whats-next {
+	border-left: 3px solid var(--vscode-textLink-foreground);
+	background: var(--vscode-welcomePage-tileBackground, transparent);
+	border-radius: 0 6px 6px 0;
+	padding: 14px 18px;
+	margin-bottom: 20px;
+}
+
+.ai-customization-overview-dashboard .whats-next-header {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-textLink-foreground);
+	margin-bottom: 6px;
+}
+
+.ai-customization-overview-dashboard .whats-next-message {
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+	margin: 0 0 10px;
+}
+
+.ai-customization-overview-dashboard .whats-next-cta {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 4px;
+	padding: 5px 14px;
+	cursor: pointer;
+	font-size: 12px;
+	font-family: inherit;
+	transition: background 0.15s ease;
+}
+
+.ai-customization-overview-dashboard .whats-next-cta:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.ai-customization-overview-dashboard .whats-next-cta:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+/* Dashboard section cards grid */
 .ai-customization-overview-dashboard .section-cards {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 12px;
 }
 
-/* Common Card Styles */
-.ai-customization-overview .card {
+/* Common card styles (shared by dashboard) */
+.ai-customization-overview-dashboard .card {
 	border: 1px solid var(--vscode-welcomePage-tileBorder);
 	border-radius: 6px;
 	padding: 14px 18px;
@@ -481,87 +763,26 @@
 	box-sizing: border-box;
 	font-family: inherit;
 	color: inherit;
-}
-
-.ai-customization-overview .card:hover {
-	background: var(--vscode-welcomePage-tileHoverBackground);
-	border-color: var(--vscode-focusBorder);
-}
-
-.ai-customization-overview .card:focus,
-.ai-customization-overview .card:focus-within {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-/* Base button inside card for navigation (Option B) */
-.ai-customization-overview .card .card-content-button {
-	flex: 1;
-	display: flex;
-	align-items: center;
-	padding: 0;
-	margin: 0;
-	background: transparent;
-	border: none;
-	text-align: left;
-	color: inherit;
-	font-family: inherit;
-	font-size: inherit;
-	cursor: pointer;
-	gap: 16px;
-	min-width: 0;
-}
-
-.ai-customization-overview .card .card-content-button:focus {
-	outline: none; /* Container card handles focus outline */
-}
-
-.ai-customization-overview .card .suggestion-icon,
-.ai-customization-overview .card .section-icon {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.ai-customization-overview .card .card-title {
-	font-weight: 500;
-	font-size: 14px;
-	color: var(--vscode-foreground);
-}
-
-.ai-customization-overview .card .card-description {
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	line-height: 1.4;
-}
-
-/* Welcome Suggestion Cards Specifics */
-.ai-customization-overview-welcome .card {
-	gap: 16px;
-	align-items: center;
-}
-
-.ai-customization-overview-welcome .card .suggestion-icon {
-	font-size: 24px;
-	width: 24px;
-	height: 24px;
-}
-
-.ai-customization-overview-welcome .card .card-content {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-}
-
-/* Dashboard Section Cards Specifics */
-.ai-customization-overview-dashboard .card {
 	flex: 1 1 calc(33.333% - 8px);
 	min-width: 200px;
 	gap: 12px;
 }
 
+.ai-customization-overview-dashboard .card:hover {
+	background: var(--vscode-welcomePage-tileHoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.ai-customization-overview-dashboard .card:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .ai-customization-overview-dashboard .card .section-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	font-size: 20px;
 	width: 20px;
 	height: 20px;
@@ -575,12 +796,18 @@
 }
 
 .ai-customization-overview-dashboard .card .card-title {
+	font-weight: 500;
+	font-size: 14px;
+	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .ai-customization-overview-dashboard .card .card-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 1.4;
 	margin-top: 4px;
 }
 
@@ -596,27 +823,11 @@
 	margin-left: 4px;
 }
 
-/* Create button styling */
-.ai-customization-overview .create-button {
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	border: none;
-	border-radius: 4px;
-	padding: 4px 12px;
-	cursor: pointer;
-	font-size: 12px;
-	transition: background 0.15s ease;
-	white-space: nowrap;
+.ai-customization-overview-dashboard .card .get-started-link {
 	flex-shrink: 0;
-}
-
-.ai-customization-overview .create-button:hover {
-	background: var(--vscode-button-hoverBackground);
-}
-
-.ai-customization-overview .create-button:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground);
+	margin-left: 4px;
 }
 
 /* Footer and utility links */
@@ -637,30 +848,13 @@
 	text-decoration: underline;
 }
 
-/* Inline suggestions in dashboard */
-.ai-customization-overview-dashboard .overview-inline-suggestions {
-	margin-top: 24px;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.ai-customization-overview-dashboard .overview-inline-suggestion {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.ai-customization-overview-dashboard .overview-inline-suggestion a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-	cursor: pointer;
-}
-
-.ai-customization-overview-dashboard .overview-inline-suggestion a:hover {
-	text-decoration: underline;
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	.ai-customization-overview-dashboard .card,
+	.ai-customization-overview-welcome .step-cta,
+	.ai-customization-overview-dashboard .whats-next-cta {
+		transition: none;
+	}
 }
 
 /* Content container visibility */
