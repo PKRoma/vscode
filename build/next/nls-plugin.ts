@@ -45,6 +45,17 @@ export interface NLSCollector {
 	add(entry: NLSEntry): void;
 }
 
+export interface PostProcessNLSEdit {
+	readonly start: number;
+	readonly end: number;
+	readonly newText: string;
+}
+
+export interface PostProcessNLSResult {
+	readonly content: string;
+	readonly edits: readonly PostProcessNLSEdit[];
+}
+
 /**
  * Creates a shared NLS collector that can be passed to multiple plugin instances.
  */
@@ -152,9 +163,26 @@ export async function finalizeNLS(
 export function postProcessNLS(
 	content: string,
 	indexMap: Map<string, number>,
-	preserveEnglish: boolean
-): string {
-	return replaceInOutput(content, indexMap, preserveEnglish);
+	preserveEnglish: boolean,
+	withEdits: true
+): PostProcessNLSResult;
+export function postProcessNLS(
+	content: string,
+	indexMap: Map<string, number>,
+	preserveEnglish: boolean,
+	withEdits?: false
+): string;
+export function postProcessNLS(
+	content: string,
+	indexMap: Map<string, number>,
+	preserveEnglish: boolean,
+	withEdits?: boolean
+): string | PostProcessNLSResult {
+	const result = replaceInOutput(content, indexMap, preserveEnglish);
+	if (withEdits) {
+		return result;
+	}
+	return result.content;
 }
 
 // ============================================================================
@@ -302,7 +330,16 @@ function replaceInOutput(
 	content: string,
 	indexMap: Map<string, number>,
 	preserveEnglish: boolean
-): string {
+): PostProcessNLSResult {
+	const replacements: PostProcessNLSEdit[] = [];
+
+	const pushReplacement = (start: number, end: number, newText: string): void => {
+		if (newText === content.slice(start, end)) {
+			return;
+		}
+		replacements.push({ start, end, newText });
+	};
+
 	// Replace all placeholders in a single pass using regex
 	// Two types of placeholders:
 	// - %%NLS:moduleId#key%% for localize() - message replaced with null
@@ -310,21 +347,26 @@ function replaceInOutput(
 	// Note: esbuild may use single or double quotes, so we handle both
 
 	if (preserveEnglish) {
-		// Just replace the placeholder with the index (both NLS and NLS2)
-		return content.replace(/["']%%NLS2?:([^%]+)%%["']/g, (match, inner) => {
-			// Try NLS first, then NLS2
+		const placeholderRegex = /["']%%NLS2?:([^%]+)%%["']/g;
+		for (const match of content.matchAll(placeholderRegex)) {
+			const fullMatch = match[0];
+			const inner = match[1];
+			const offset = match.index;
+			if (offset === undefined) {
+				continue;
+			}
+
 			let placeholder = `%%NLS:${inner}%%`;
 			let index = indexMap.get(placeholder);
 			if (index === undefined) {
 				placeholder = `%%NLS2:${inner}%%`;
 				index = indexMap.get(placeholder);
 			}
+
 			if (index !== undefined) {
-				return String(index);
+				pushReplacement(offset, offset + fullMatch.length, String(index));
 			}
-			// Placeholder not found in map, leave as-is (shouldn't happen)
-			return match;
-		});
+		}
 	} else {
 		// For NLS (localize): replace placeholder with index AND replace message with null
 		// For NLS2 (localize2): replace placeholder with index, keep message
@@ -332,33 +374,89 @@ function replaceInOutput(
 		// Note: esbuild may use single or double quotes, so we handle both
 
 		// First handle NLS (localize) - replace both key and message
-		content = content.replace(
-			/["']%%NLS:([^%]+)%%["'](\s*,\s*)(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g,
-			(match, inner, comma) => {
-				const placeholder = `%%NLS:${inner}%%`;
-				const index = indexMap.get(placeholder);
-				if (index !== undefined) {
-					return `${index}${comma}null`;
-				}
-				return match;
+		const localizeRegex = /["']%%NLS:([^%]+)%%["'](\s*,\s*)(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\\n\r]|\\.)*`)/g;
+		for (const match of content.matchAll(localizeRegex)) {
+			const fullMatch = match[0];
+			const inner = match[1];
+			const comma = match[2];
+			const offset = match.index;
+			if (offset === undefined) {
+				continue;
 			}
-		);
+
+			const placeholder = `%%NLS:${inner}%%`;
+			const index = indexMap.get(placeholder);
+			if (index !== undefined) {
+				pushReplacement(offset, offset + fullMatch.length, `${index}${comma}null`);
+			}
+		}
+
+		const overlaps = (start: number, end: number): boolean => {
+			for (const edit of replacements) {
+				if (start < edit.end && end > edit.start) {
+					return true;
+				}
+			}
+			return false;
+		};
+
+		// Fallback for NLS placeholders not covered above (e.g. multiline template
+		// literals): replace only the key with index and keep the original message.
+		const localizeKeyOnlyRegex = /["']%%NLS:([^%]+)%%["']/g;
+		for (const match of content.matchAll(localizeKeyOnlyRegex)) {
+			const fullMatch = match[0];
+			const inner = match[1];
+			const offset = match.index;
+			if (offset === undefined) {
+				continue;
+			}
+
+			if (overlaps(offset, offset + fullMatch.length)) {
+				continue;
+			}
+
+			const placeholder = `%%NLS:${inner}%%`;
+			const index = indexMap.get(placeholder);
+			if (index !== undefined) {
+				pushReplacement(offset, offset + fullMatch.length, String(index));
+			}
+		}
 
 		// Then handle NLS2 (localize2) - replace only key, keep message
-		content = content.replace(
-			/["']%%NLS2:([^%]+)%%["']/g,
-			(match, inner) => {
-				const placeholder = `%%NLS2:${inner}%%`;
-				const index = indexMap.get(placeholder);
-				if (index !== undefined) {
-					return String(index);
-				}
-				return match;
+		const localize2Regex = /["']%%NLS2:([^%]+)%%["']/g;
+		for (const match of content.matchAll(localize2Regex)) {
+			const fullMatch = match[0];
+			const inner = match[1];
+			const offset = match.index;
+			if (offset === undefined) {
+				continue;
 			}
-		);
 
-		return content;
+			const placeholder = `%%NLS2:${inner}%%`;
+			const index = indexMap.get(placeholder);
+			if (index !== undefined) {
+				pushReplacement(offset, offset + fullMatch.length, String(index));
+			}
+		}
 	}
+
+	if (replacements.length === 0) {
+		return { content, edits: [] };
+	}
+
+	const parts: string[] = [];
+	let lastEnd = 0;
+	for (const edit of replacements) {
+		parts.push(content.substring(lastEnd, edit.start));
+		parts.push(edit.newText);
+		lastEnd = edit.end;
+	}
+	parts.push(content.substring(lastEnd));
+
+	return {
+		content: parts.join(''),
+		edits: replacements,
+	};
 }
 
 // ============================================================================

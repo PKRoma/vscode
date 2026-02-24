@@ -8,8 +8,9 @@ import * as esbuild from 'esbuild';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { type RawSourceMap, SourceMapConsumer } from 'source-map';
+import { type RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from '../nls-plugin.ts';
+import { convertPrivateFields, adjustSourceMap } from '../private-to-property.ts';
 
 // analyzeLocalizeCalls requires the import path to end with `/nls`
 const NLS_STUB = [
@@ -36,7 +37,7 @@ interface BundleResult {
 async function bundleWithNLS(
 	files: Record<string, string>,
 	entryPoint: string,
-	opts?: { postProcess?: boolean }
+	opts?: { postProcess?: boolean; manglePrivates?: boolean }
 ): Promise<BundleResult> {
 	const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'nls-sm-test-'));
 	const srcDir = path.join(tmpDir, 'src');
@@ -88,16 +89,32 @@ async function bundleWithNLS(
 		}
 	}
 
+	// Optionally apply post-processing transforms and adjust source maps.
+	let mapJson: RawSourceMap = JSON.parse(mapContent);
+
+	if (opts?.manglePrivates) {
+		const preMangleContent = jsContent;
+		const mangleResult = convertPrivateFields(jsContent, entryPoint.replace(/\.ts$/, '.js'));
+		jsContent = mangleResult.code;
+		if (mangleResult.edits.length > 0) {
+			mapJson = adjustSourceMap(mapJson, preMangleContent, mangleResult.edits);
+		}
+	}
+
 	// Optionally apply NLS post-processing (replaces placeholders with indices)
 	if (opts?.postProcess) {
 		const nlsResult = await finalizeNLS(collector, outDir);
-		jsContent = postProcessNLS(jsContent, nlsResult.indexMap, false);
+		const preNlsContent = jsContent;
+		const post = postProcessNLS(jsContent, nlsResult.indexMap, false, true);
+		jsContent = post.content;
+		if (post.edits.length > 0) {
+			mapJson = adjustSourceMap(mapJson, preNlsContent, post.edits);
+		}
 	}
 
 	assert.ok(jsContent, 'Expected JS output');
 	assert.ok(mapContent, 'Expected source map output');
 
-	const mapJson = JSON.parse(mapContent);
 	const map = new SourceMapConsumer(mapJson);
 	const cleanup = () => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -131,6 +148,22 @@ function findColumn(text: string, needle: string): number {
 		}
 	}
 	throw new Error(`Could not find "${needle}" in text`);
+}
+
+function createIdentitySourceMap(code: string, sourceName: string): RawSourceMap {
+	const generator = new SourceMapGenerator();
+	generator.setSourceContent(sourceName, code);
+	const lines = code.split('\n');
+	for (let line = 0; line < lines.length; line++) {
+		for (let col = 0; col < lines[line].length; col++) {
+			generator.addMapping({
+				generated: { line: line + 1, column: col },
+				original: { line: line + 1, column: col },
+				source: sourceName,
+			});
+		}
+	}
+	return JSON.parse(generator.toString());
 }
 
 suite('NLS plugin source maps', () => {
@@ -368,6 +401,141 @@ suite('NLS plugin source maps', () => {
 				'sourcesContent should not contain NLS placeholders');
 		} finally {
 			cleanup();
+		}
+	});
+
+	test('post-processed NLS keeps column mapping parity with pre-postprocess output', async () => {
+		const source = [
+			'import { localize } from "../vs/nls";',
+			'const x = localize("key", "A considerably longer message to amplify drift"); const marker = "FINDME"; export { x, marker };',
+		].join('\n');
+
+		const baseline = await bundleWithNLS(
+			{ 'test/post-column-parity.ts': source },
+			'test/post-column-parity.ts',
+			{ postProcess: false }
+		);
+
+		const postProcessed = await bundleWithNLS(
+			{ 'test/post-column-parity.ts': source },
+			'test/post-column-parity.ts',
+			{ postProcess: true }
+		);
+
+		try {
+			const baselineLine = findLine(baseline.js, 'FINDME');
+			const baselineCol = findColumn(baseline.js, '"FINDME"');
+			const baselinePos = baseline.map.originalPositionFor({ line: baselineLine, column: baselineCol });
+
+			const postLine = findLine(postProcessed.js, 'FINDME');
+			const postCol = findColumn(postProcessed.js, '"FINDME"');
+			const postPos = postProcessed.map.originalPositionFor({ line: postLine, column: postCol });
+
+			assert.ok(baselinePos.source, 'Expected source mapping before post-processing');
+			assert.ok(postPos.source, 'Expected source mapping after post-processing');
+			assert.strictEqual(postPos.line, baselinePos.line, 'Post-process should preserve mapped line for FINDME');
+			assert.strictEqual(postPos.column, baselinePos.column, 'Post-process should preserve mapped column for FINDME');
+		} finally {
+			baseline.cleanup();
+			postProcessed.cleanup();
+		}
+	});
+
+	test('postProcessNLS edit metadata can preserve column mapping', () => {
+		const preContent = 'const x = localize("%%NLS:test/mod#key%%", "A very long message to force shrinking"); const marker = "IDENTITY";';
+		const indexMap = new Map<string, number>([['%%NLS:test/mod#key%%', 0]]);
+		const preMap = createIdentitySourceMap(preContent, 'generated.js');
+		const post = postProcessNLS(preContent, indexMap, false, true);
+		const postContent = post.content;
+		const adjustedMap = adjustSourceMap(preMap, preContent, post.edits);
+
+		const markerLine = findLine(postContent, 'IDENTITY');
+		const markerCol = findColumn(postContent, '"IDENTITY"');
+		const expectedOriginalCol = findColumn(preContent, '"IDENTITY"');
+
+		const consumer = new SourceMapConsumer(adjustedMap);
+		const pos = consumer.originalPositionFor({ line: markerLine, column: markerCol });
+
+		assert.strictEqual(pos.line, 1, 'Identity map should preserve line 1');
+		assert.strictEqual(pos.column, expectedOriginalCol, 'Marker column should map to original column when post-process updates map');
+	});
+
+	test('post-processed NLS keeps line mapping parity for multiline template messages', async () => {
+		const source = [
+			'import { localize } from "../vs/nls";',
+			'const x = localize("multi", `line one',
+			'line two`, 123);',
+			'export const marker = "AFTER_MULTILINE";',
+		].join('\n');
+
+		const baseline = await bundleWithNLS(
+			{ 'test/post-line-parity.ts': source },
+			'test/post-line-parity.ts',
+			{ postProcess: false }
+		);
+
+		const postProcessed = await bundleWithNLS(
+			{ 'test/post-line-parity.ts': source },
+			'test/post-line-parity.ts',
+			{ postProcess: true }
+		);
+
+		try {
+			const baselineLine = findLine(baseline.js, 'AFTER_MULTILINE');
+			const baselineCol = findColumn(baseline.js, '"AFTER_MULTILINE"');
+			const baselinePos = baseline.map.originalPositionFor({ line: baselineLine, column: baselineCol });
+
+			const postLine = findLine(postProcessed.js, 'AFTER_MULTILINE');
+			const postCol = findColumn(postProcessed.js, '"AFTER_MULTILINE"');
+			const postPos = postProcessed.map.originalPositionFor({ line: postLine, column: postCol });
+
+			assert.ok(baselinePos.source, 'Expected source mapping before post-processing');
+			assert.ok(postPos.source, 'Expected source mapping after post-processing');
+			assert.strictEqual(postPos.line, baselinePos.line, 'Post-process should preserve mapped line after multiline localize replacement');
+			assert.strictEqual(postPos.column, baselinePos.column, 'Post-process should preserve mapped column after multiline localize replacement');
+		} finally {
+			baseline.cleanup();
+			postProcessed.cleanup();
+		}
+	});
+
+	test('combined mangle-privates and NLS post-process keeps mapping parity', async () => {
+		const source = [
+			'import { localize } from "../vs/nls";',
+			'export class Mixed {',
+			'	#value = 1;',
+			'	compute(): number { const msg = localize("combo", "A long message to stress NLS replacement"); const marker = "COMBINED_MARKER"; return this.#value + msg.length + marker.length; }',
+			'}',
+		].join('\n');
+
+		const baseline = await bundleWithNLS(
+			{ 'test/combined.ts': source },
+			'test/combined.ts',
+			{ postProcess: false, manglePrivates: false }
+		);
+
+		const transformed = await bundleWithNLS(
+			{ 'test/combined.ts': source },
+			'test/combined.ts',
+			{ postProcess: true, manglePrivates: true }
+		);
+
+		try {
+			const baselineLine = findLine(baseline.js, 'COMBINED_MARKER');
+			const baselineCol = findColumn(baseline.js, '"COMBINED_MARKER"');
+			const baselinePos = baseline.map.originalPositionFor({ line: baselineLine, column: baselineCol });
+
+			const transformedLine = findLine(transformed.js, 'COMBINED_MARKER');
+			const transformedCol = findColumn(transformed.js, '"COMBINED_MARKER"');
+			const transformedPos = transformed.map.originalPositionFor({ line: transformedLine, column: transformedCol });
+
+			assert.ok(baselinePos.source, 'Expected baseline source mapping');
+			assert.ok(transformedPos.source, 'Expected transformed source mapping');
+			assert.strictEqual(transformedPos.line, baselinePos.line, 'Combined transforms should preserve mapped line');
+			assert.strictEqual(transformedPos.column, baselinePos.column, 'Combined transforms should preserve mapped column');
+		} finally {
+			baseline.cleanup();
+			transformed.cleanup();
 		}
 	});
 });
