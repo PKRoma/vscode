@@ -41,7 +41,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IContextKey, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
@@ -372,6 +372,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, displayCommand, toolInvocation, context);
 		} else {
 			this.domNode = progressPart.domNode;
+			// Toggle show-checkmarks class on the progress container for accessibility setting
+			const updateCheckmarks = () => this.domNode.classList.toggle('show-checkmarks', !!this._configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+			updateCheckmarks();
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+					updateCheckmarks();
+				}
+			}));
 		}
 
 		// Only auto-expand in thinking containers if there's actual output to show
@@ -1483,15 +1491,20 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		initialExpanded: boolean,
 		isComplete: boolean,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
 		this._isComplete = isComplete;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
+
+		if (isComplete) {
+			this.icon = Codicon.check;
+		}
 
 		this._setCodeFormattedTitle();
 		this.setExpanded(initialExpanded);
@@ -1521,6 +1534,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 			return;
 		}
 		this._isComplete = true;
+		this.icon = Codicon.check;
 		this._setCodeFormattedTitle();
 	}
 

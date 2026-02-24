@@ -1395,6 +1395,94 @@ export interface MainThreadChatContextShape extends IDisposable {
 	$executeChatContextItemCommand(itemHandle: number): Promise<void>;
 }
 
+export interface IChatDebugEventCommonDto {
+	readonly id?: string;
+	readonly sessionResource?: UriComponents;
+	readonly created: number;
+	readonly parentEventId?: string;
+}
+
+export interface IChatDebugToolCallEventDto extends IChatDebugEventCommonDto {
+	readonly kind: 'toolCall';
+	readonly toolName: string;
+	readonly toolCallId?: string;
+	readonly input?: string;
+	readonly output?: string;
+	readonly result?: 'success' | 'error';
+	readonly durationInMillis?: number;
+}
+
+export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
+	readonly kind: 'modelTurn';
+	readonly model?: string;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly totalTokens?: number;
+	readonly durationInMillis?: number;
+}
+
+export interface IChatDebugGenericEventDto extends IChatDebugEventCommonDto {
+	readonly kind: 'generic';
+	readonly name: string;
+	readonly details?: string;
+	readonly level: number;
+	readonly category?: string;
+}
+
+export interface IChatDebugSubagentInvocationEventDto extends IChatDebugEventCommonDto {
+	readonly kind: 'subagentInvocation';
+	readonly agentName: string;
+	readonly description?: string;
+	readonly status?: 'running' | 'completed' | 'failed';
+	readonly durationInMillis?: number;
+	readonly toolCallCount?: number;
+	readonly modelTurnCount?: number;
+}
+
+export interface IChatDebugMessageSectionDto {
+	readonly name: string;
+	readonly content: string;
+}
+
+export interface IChatDebugUserMessageEventDto extends IChatDebugEventCommonDto {
+	readonly kind: 'userMessage';
+	readonly message: string;
+	readonly sections: readonly IChatDebugMessageSectionDto[];
+}
+
+export interface IChatDebugAgentResponseEventDto extends IChatDebugEventCommonDto {
+	readonly kind: 'agentResponse';
+	readonly message: string;
+	readonly sections: readonly IChatDebugMessageSectionDto[];
+}
+
+export type IChatDebugEventDto = IChatDebugToolCallEventDto | IChatDebugModelTurnEventDto | IChatDebugGenericEventDto | IChatDebugSubagentInvocationEventDto | IChatDebugUserMessageEventDto | IChatDebugAgentResponseEventDto;
+
+export interface IChatDebugEventTextContentDto {
+	readonly kind: 'text';
+	readonly value: string;
+}
+
+export interface IChatDebugEventMessageContentDto {
+	readonly kind: 'message';
+	readonly type: 'user' | 'agent';
+	readonly message: string;
+	readonly sections: readonly IChatDebugMessageSectionDto[];
+}
+
+export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto;
+
+export interface ExtHostChatDebugShape {
+	$provideChatDebugLog(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined>;
+	$resolveChatDebugLogEvent(handle: number, eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContentDto | undefined>;
+}
+
+export interface MainThreadChatDebugShape extends IDisposable {
+	$registerChatDebugLogProvider(handle: number): void;
+	$unregisterChatDebugLogProvider(handle: number): void;
+	$acceptChatDebugEvent(handle: number, event: IChatDebugEventDto): void;
+}
+
 export interface MainThreadEmbeddingsShape extends IDisposable {
 	$registerEmbeddingProvider(handle: number, identifier: string): void;
 	$unregisterEmbeddingProvider(handle: number): void;
@@ -3606,6 +3694,7 @@ export const MainContext = {
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
 	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
+	MainThreadChatDebug: createProxyIdentifier<MainThreadChatDebugShape>('MainThreadChatDebug'),
 };
 
 export const ExtHostContext = {
@@ -3667,6 +3756,7 @@ export const ExtHostContext = {
 	ExtHostLanguageModelTools: createProxyIdentifier<ExtHostLanguageModelToolsShape>('ExtHostChatSkills'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostChatContext: createProxyIdentifier<ExtHostChatContextShape>('ExtHostChatContext'),
+	ExtHostChatDebug: createProxyIdentifier<ExtHostChatDebugShape>('ExtHostChatDebug'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
 	ExtHostEmbeddings: createProxyIdentifier<ExtHostEmbeddingsShape>('ExtHostEmbeddings'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),

@@ -49,6 +49,8 @@ import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
+import { IChatDebugService } from '../../../common/chatDebugService.js';
+import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
@@ -182,6 +184,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {

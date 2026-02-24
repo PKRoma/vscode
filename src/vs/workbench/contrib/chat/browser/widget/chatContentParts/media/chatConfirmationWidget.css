@@ -342,4 +342,16 @@
 		}
 	}
 
+	.chat-confirmation-widget .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+		display: none;
+	}
+
+	.show-checkmarks .chat-confirmation-widget .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+		display: inline-block;
+	}
+
+	.show-checkmarks .chat-confirmation-widget .chat-confirmation-widget-title {
+		padding-left: 2px;
+	}
+
 }

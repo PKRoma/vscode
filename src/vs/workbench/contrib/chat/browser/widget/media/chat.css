@@ -235,6 +235,7 @@
 	visibility: hidden;
 	padding-top: 6px;
 	height: 22px;
+	transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
 }
 
 /* Show toolbar on hover and last response. Also show when the item has keyboard focus (focus-within) or when the surrounding list row is marked focused (monaco list keyboard navigation). */
@@ -244,9 +245,12 @@
 .interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-details,
 .monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
-.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details,
+.interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
 	visibility: visible;
+	transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
 }
 
 /* Style the internal toolbar element to use flexbox */
@@ -2176,6 +2180,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	line-height: unset;
 }
 
+.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-button {
+	gap: 4px;
+	margin-left: 0;
+}
+
 .interactive-session .chat-file-changes-label .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -2199,6 +2208,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
 	color: var(--vscode-icon-foreground) !important;
+}
+
+/* Hide the leading icon on collapsible parts by default; show-checkmarks restores it */
+.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error):not(.codicon-warning) {
+	display: none;
+}
+
+.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+	display: inline-block;
 }
 
 /* Hover chevron indicator for collapsible parts */
@@ -2290,6 +2308,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
 	}
+}
+
+.show-checkmarks .progress-container > .codicon.codicon-check,
+.progress-container.show-checkmarks > .codicon.codicon-check {
+	display: inline-flex;
 }
 
 .interactive-item-container .chat-command-button {
@@ -2849,7 +2872,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.checkpoint-container:focus-within,
-	.checkpoint-container.response-hovered,
+	.checkpoint-container.group-hovered,
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}
