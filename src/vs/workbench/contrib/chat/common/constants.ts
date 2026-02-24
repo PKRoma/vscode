@@ -53,7 +53,7 @@ export enum ChatConfiguration {
 	AgentsControlClickBehavior = 'chat.agentsControl.clickBehavior',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
-	AICustomizationMenuEnabled = 'chat.aiCustomizationMenu.enabled',
+	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
 }
 
 /**
@@ -170,3 +170,9 @@ export const ChatEditorTitleMaxLength = 30;
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
 export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);
+
+/**
+ * The built-in general-purpose agent name. When the model uses this name,
+ * the subagent inherits the parent's system prompt, model, and tools.
+ */
+export const GeneralPurposeAgentName = 'General Purpose';

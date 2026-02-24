@@ -8,7 +8,8 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { RunSubagentTool, GeneralPurposeAgentName } from '../../../../common/tools/builtinTools/runSubagentTool.js';
+import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
+import { GeneralPurposeAgentName } from '../../../../common/constants.js';
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';

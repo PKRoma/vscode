@@ -30,7 +30,6 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../t
 import { ChatRequestVariableSet, isPromptFileVariableEntry, isPromptTextVariableEntry, toFileVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, getFilePath, InstructionsCollectionEvent } from '../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { GeneralPurposeAgentName } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -44,7 +43,7 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { IRemoteAgentService } from '../../../../../../workbench/services/remote/common/remoteAgentService.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { match } from '../../../../../../base/common/glob.js';
-import { ChatModeKind } from '../../../common/constants.js';
+import { ChatModeKind, GeneralPurposeAgentName } from '../../../common/constants.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';

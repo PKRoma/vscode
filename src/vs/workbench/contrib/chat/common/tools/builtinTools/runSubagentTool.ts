@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../constants.js';
+import { ChatAgentLocation, ChatModeKind, GeneralPurposeAgentName } from '../../constants.js';
 import { ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
@@ -39,12 +39,6 @@ import {
 } from '../languageModelToolsService.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
-
-/**
- * The built-in general-purpose agent name. When the model uses this name,
- * the subagent inherits the parent's system prompt, model, and tools.
- */
-export const GeneralPurposeAgentName = 'General Purpose';
 
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 

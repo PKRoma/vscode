@@ -26,9 +26,8 @@ import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatModeKind } from '../constants.js';
+import { ChatModeKind, GeneralPurposeAgentName } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
-import { GeneralPurposeAgentName } from '../tools/builtinTools/runSubagentTool.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
