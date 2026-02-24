@@ -223,10 +223,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 		}
 
-		// Restore selected section from storage, falling back to first available
+		// Restore selected section from storage, falling back to Overview or first available
 		const savedSection = this.storageService.get(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, StorageScope.PROFILE);
 		if (savedSection && this.sections.some(s => s.id === savedSection)) {
 			this.selectedSection = savedSection as AICustomizationManagementSection;
+		} else if (this.sections.some(s => s.id === AICustomizationManagementSection.Overview)) {
+			this.selectedSection = AICustomizationManagementSection.Overview;
 		} else if (this.sections.length > 0) {
 			this.selectedSection = this.sections[0].id;
 		}
@@ -280,6 +282,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.contentContainer.style.width = `${width}px`;
 				if (height !== undefined) {
+					this.overviewWidget?.layout(new DOM.Dimension(width, height));
 					this.listWidget.layout(height - 16, width - 24);
 					this.mcpListWidget?.layout(height - 16, width - 24);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
@@ -443,6 +446,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
 			void this.listWidget.setSection(this.selectedSection);
+		} else if (this.selectedSection === AICustomizationManagementSection.Overview) {
+			this.overviewWidget?.refresh();
 		}
 	}
 
@@ -478,6 +483,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Update content visibility
 		this.updateContentVisibility();
 
+		// Update Overview counts if selected
+		if (section === AICustomizationManagementSection.Overview) {
+			this.overviewWidget?.refresh();
+		}
+
 		// Load items for the new section (only for prompts-based sections)
 		if (this.isPromptsSection(section)) {
 			void this.listWidget.setSection(section);
@@ -494,10 +504,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private updateContentVisibility(): void {
 		const isEditorMode = this.viewMode === 'editor';
 		const isMcpDetailMode = this.viewMode === 'mcpDetail';
+		const isOverviewSection = this.selectedSection === AICustomizationManagementSection.Overview;
 		const isPromptsSection = this.isPromptsSection(this.selectedSection);
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 
+		this.overviewContentContainer.style.display = !isEditorMode && !isMcpDetailMode && isOverviewSection ? '' : 'none';
 		this.promptsContentContainer.style.display = !isEditorMode && !isMcpDetailMode && isPromptsSection ? '' : 'none';
 		if (this.modelsContentContainer) {
 			this.modelsContentContainer.style.display = !isEditorMode && !isMcpDetailMode && isModelsSection ? '' : 'none';
