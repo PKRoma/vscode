@@ -25,6 +25,10 @@ export default defineThemedFixtureGroup({
 		render: renderButtons,
 	}),
 
+	MegCircularButton: defineComponentFixture({
+		render: renderMegCircularButton,
+	}),
+
 	ButtonBar: defineComponentFixture({
 		render: renderButtonBar,
 	}),
@@ -162,6 +166,39 @@ function renderButtons({ container, disposableStore }: ComponentFixtureContext):
 	const disabledSecondary = disposableStore.add(new Button(disabledSection, { ...themedButtonStyles, secondary: true, title: 'Disabled Secondary', disabled: true }));
 	disabledSecondary.label = 'Disabled Secondary';
 	disabledSecondary.enabled = false;
+}
+
+function renderMegCircularButton({ container, disposableStore }: ComponentFixtureContext): void {
+	container.style.padding = '24px';
+	container.style.display = 'flex';
+	container.style.alignItems = 'center';
+	container.style.justifyContent = 'center';
+
+	const host = $('div');
+	host.style.display = 'flex';
+	host.style.alignItems = 'center';
+	host.style.justifyContent = 'center';
+	host.style.width = '96px';
+	host.style.height = '96px';
+	container.appendChild(host);
+
+	const button = disposableStore.add(new Button(host, {
+		...themedButtonStyles,
+		title: 'meg',
+	}));
+	button.label = 'meg';
+
+	// Force a circular silhouette regardless of theme defaults.
+	button.element.style.width = '72px';
+	button.element.style.height = '72px';
+	button.element.style.borderRadius = '9999px';
+	button.element.style.padding = '0';
+	button.element.style.display = 'inline-flex';
+	button.element.style.alignItems = 'center';
+	button.element.style.justifyContent = 'center';
+	button.element.style.textTransform = 'lowercase';
+	button.element.style.fontWeight = '700';
+	button.element.style.letterSpacing = '0.2px';
 }
 
 function renderButtonBar({ container, disposableStore }: ComponentFixtureContext): void {
