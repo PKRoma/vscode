@@ -1031,25 +1031,6 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class ToggleYoloModeAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.toggleYoloMode',
-				title: localize2('chat.toggleYoloMode', "Toggle YOLO Mode"),
-				category: CHAT_CATEGORY,
-				f1: true,
-				precondition: ChatContextKeys.enabled,
-				toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.GlobalAutoApprove}`, true),
-			});
-		}
-
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const configurationService = accessor.get(IConfigurationService);
-			const currentValue = configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove);
-			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, !currentValue);
-		}
-	});
-
 	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.provider.enterprise.id));
 	registerAction2(class extends Action2 {
 		constructor() {

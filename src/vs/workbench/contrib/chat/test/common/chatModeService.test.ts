@@ -83,14 +83,13 @@ suite('ChatModeService', () => {
 		assert.strictEqual(askMode.kind, ChatModeKind.Ask);
 	});
 
-	test('should include Autopilot mode with autoApprove', () => {
+	test('should include Autopilot mode', () => {
 		const modes = chatModeService.getModes();
 
 		const autopilotMode = modes.builtin.find(mode => mode.id === ChatModeKind.Autopilot);
 		assert.ok(autopilotMode, 'Autopilot mode should be present');
 		assert.strictEqual(autopilotMode.label.get(), 'Autopilot');
 		assert.strictEqual(autopilotMode.kind, ChatModeKind.Autopilot);
-		assert.strictEqual(autopilotMode.autoApprove?.get(), true, 'Autopilot should have autoApprove enabled');
 	});
 
 	test('Autopilot mode should be positioned after Agent mode', () => {

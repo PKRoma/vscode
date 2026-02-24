@@ -85,7 +85,6 @@ export namespace PromptHeaderAttributes {
 	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
-	export const autoApprove = 'auto-approve';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -330,10 +329,6 @@ export class PromptHeader {
 
 	public get disableModelInvocation(): boolean | undefined {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
-	}
-
-	public get autoApprove(): boolean | undefined {
-		return this.getBooleanAttribute(PromptHeaderAttributes.autoApprove);
 	}
 
 	private getBooleanAttribute(key: string): boolean | undefined {

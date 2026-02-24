@@ -719,8 +719,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (target === Target.Claude && tools) {
 					tools = mapClaudeTools(tools);
 				}
-				const autoApprove = ast.header.autoApprove;
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, autoApprove, agentInstructions, source };
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source };
 			})
 		);
 

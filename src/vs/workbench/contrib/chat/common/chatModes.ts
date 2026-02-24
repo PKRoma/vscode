@@ -129,7 +129,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						target: cachedMode.target ?? Target.Undefined,
 						visibility,
 						agents: cachedMode.agents,
-						autoApprove: cachedMode.autoApprove,
+
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
 					const instance = new CustomChatMode(customChatMode);
@@ -259,7 +259,6 @@ export interface IChatModeData {
 	readonly visibility?: ICustomAgentVisibility;
 	readonly agents?: readonly string[];
 	readonly infer?: boolean; // deprecated, only available in old cached data
-	readonly autoApprove?: boolean;
 }
 
 export interface IChatMode {
@@ -280,7 +279,6 @@ export interface IChatMode {
 	readonly target: IObservable<Target>;
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
-	readonly autoApprove?: IObservable<boolean | undefined>;
 }
 
 export interface IVariableReference {
@@ -328,7 +326,6 @@ export class CustomChatMode implements IChatMode {
 	private readonly _targetObservable: ISettableObservable<Target>;
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
-	private readonly _autoApproveObservable: ISettableObservable<boolean | undefined>;
 	private _source: IAgentSource;
 
 	public readonly id: string;
@@ -393,10 +390,6 @@ export class CustomChatMode implements IChatMode {
 		return this._agentsObservable;
 	}
 
-	get autoApprove(): IObservable<boolean | undefined> {
-		return this._autoApproveObservable;
-	}
-
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -412,7 +405,6 @@ export class CustomChatMode implements IChatMode {
 		this._targetObservable = observableValue('target', customChatMode.target);
 		this._visibilityObservable = observableValue('visibility', customChatMode.visibility);
 		this._agentsObservable = observableValue('agents', customChatMode.agents);
-		this._autoApproveObservable = observableValue('autoApprove', customChatMode.autoApprove);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
@@ -432,7 +424,6 @@ export class CustomChatMode implements IChatMode {
 			this._targetObservable.set(newData.target, tx);
 			this._visibilityObservable.set(newData.visibility, tx);
 			this._agentsObservable.set(newData.agents, tx);
-			this._autoApproveObservable.set(newData.autoApprove, tx);
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
@@ -455,7 +446,6 @@ export class CustomChatMode implements IChatMode {
 			target: this.target.get(),
 			visibility: this.visibility.get(),
 			agents: this.agents.get(),
-			autoApprove: this.autoApprove.get(),
 		};
 	}
 }
@@ -501,23 +491,18 @@ export class BuiltinChatMode implements IChatMode {
 	public readonly description: IObservable<string>;
 	public readonly icon: IObservable<ThemeIcon>;
 	public readonly target: IObservable<Target>;
-	public readonly autoApprove?: IObservable<boolean | undefined>;
 
 	constructor(
 		public readonly kind: ChatModeKind,
 		label: string,
 		description: string,
 		icon: ThemeIcon,
-		options?: { autoApprove?: boolean },
 	) {
 		this.name = constObservable(kind);
 		this.label = constObservable(label);
 		this.description = observableValue('description', description);
 		this.icon = constObservable(icon);
 		this.target = constObservable(Target.Undefined);
-		if (options?.autoApprove) {
-			this.autoApprove = constObservable(true);
-		}
 	}
 
 	public get isBuiltin(): boolean {
@@ -546,7 +531,7 @@ export namespace ChatMode {
 	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Explore and understand your code"), Codicon.question);
 	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit or refactor selected code"), Codicon.edit);
 	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build next"), Codicon.agent);
-	export const Autopilot = new BuiltinChatMode(ChatModeKind.Autopilot, 'Autopilot', localize('autopilotDescription', "Auto-approve all tools and run autonomously"), Codicon.rocket, { autoApprove: true });
+	export const Autopilot = new BuiltinChatMode(ChatModeKind.Autopilot, 'Autopilot', localize('autopilotDescription', "Auto-approve all tools and run autonomously"), Codicon.rocket);
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {

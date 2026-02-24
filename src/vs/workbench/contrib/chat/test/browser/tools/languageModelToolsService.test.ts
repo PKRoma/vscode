@@ -22,9 +22,9 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
-import { ChatModel, IChatModel, IChatRequestModeInfo } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -83,14 +83,13 @@ function registerToolForTest(service: LanguageModelToolsService, store: any, id:
 	};
 }
 
-function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any }; modeInfo?: IChatRequestModeInfo }): IChatModel {
+function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any } }): IChatModel {
 	const requestId = options?.requestId ?? 'requestId';
 	const capture = options?.capture;
-	const modeInfo = options?.modeInfo;
 	const fakeModel = {
 		sessionId,
 		sessionResource: LocalChatSessionUri.forSession(sessionId),
-		getRequests: () => [{ id: requestId, modelId: 'test-model', modeInfo }],
+		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
 	} as ChatModel;
 	chatService.addSession(fakeModel);
 	chatService.appendProgress = (request, progress) => {
@@ -4213,112 +4212,6 @@ suite('LanguageModelToolsService', () => {
 
 			// Updated parameters should be applied since validation passed
 			assert.deepStrictEqual(receivedParameters, { command: 'safe-command' });
-		});
-	});
-
-	suite('Autopilot mode and YOLO', () => {
-
-		test('autopilot mode auto-approves tool calls', async () => {
-			const { service: testService, chatService: testChatService } = createTestToolsService(store);
-
-			const tool = registerToolForTest(testService, store, 'autopilotTool', {
-				prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Needs approval' } }),
-				invoke: async () => ({ content: [{ kind: 'text', value: 'auto approved by autopilot' }] })
-			});
-
-			const sessionId = 'autopilot-session';
-			stubGetSession(testChatService, sessionId, {
-				requestId: 'req-autopilot',
-				modeInfo: {
-					kind: ChatModeKind.Autopilot,
-					isBuiltin: true,
-					modeInstructions: undefined,
-					modeId: 'autopilot',
-					applyCodeBlockSuggestionId: undefined,
-					autoApprove: true,
-				},
-			});
-
-			const result = await testService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId }),
-				async () => 0,
-				CancellationToken.None
-			);
-			assert.strictEqual(result.content[0].value, 'auto approved by autopilot');
-		});
-
-		test('autopilot mode does not auto-approve toolIdThatCannotBeAutoApproved', async () => {
-			const { service: testService, chatService: testChatService } = createTestToolsService(store);
-
-			const capture: { invocation?: any } = {};
-			const tool = registerToolForTest(testService, store, 'vscode_get_confirmation_with_options', {
-				prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm', message: 'Must confirm' } }),
-				invoke: async () => ({ content: [{ kind: 'text', value: 'confirmed' }] })
-			});
-
-			const sessionId = 'autopilot-blocked';
-			stubGetSession(testChatService, sessionId, {
-				requestId: 'req-blocked',
-				capture,
-				modeInfo: {
-					kind: ChatModeKind.Autopilot,
-					isBuiltin: true,
-					modeInstructions: undefined,
-					modeId: 'autopilot',
-					applyCodeBlockSuggestionId: undefined,
-					autoApprove: true,
-				},
-			});
-
-			const resultPromise = testService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			const published = await waitForPublishedInvocation(capture);
-			assert.ok(published?.confirmationMessages, 'vscode_get_confirmation_with_options should still require confirmation in autopilot mode');
-
-			IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
-			const result = await resultPromise;
-			assert.strictEqual(result.content[0].value, 'confirmed');
-		});
-
-		test('agent mode without autoApprove requires confirmation', async () => {
-			const { service: testService, chatService: testChatService } = createTestToolsService(store);
-
-			const capture: { invocation?: any } = {};
-			const tool = registerToolForTest(testService, store, 'agentTool', {
-				prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Test', message: 'Needs approval' } }),
-				invoke: async () => ({ content: [{ kind: 'text', value: 'agent done' }] })
-			});
-
-			const sessionId = 'agent-no-autoapprove';
-			stubGetSession(testChatService, sessionId, {
-				requestId: 'req-agent',
-				capture,
-				modeInfo: {
-					kind: ChatModeKind.Agent,
-					isBuiltin: true,
-					modeInstructions: undefined,
-					modeId: 'agent',
-					applyCodeBlockSuggestionId: undefined,
-					// no autoApprove — normal agent mode
-				},
-			});
-
-			const resultPromise = testService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			const published = await waitForPublishedInvocation(capture);
-			assert.ok(published?.confirmationMessages, 'regular agent mode should require confirmation');
-
-			IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
-			const result = await resultPromise;
-			assert.strictEqual(result.content[0].value, 'agent done');
 		});
 	});
 });

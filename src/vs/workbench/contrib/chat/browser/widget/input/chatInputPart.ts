@@ -419,7 +419,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} : undefined,
 			modeId: modeId,
 			applyCodeBlockSuggestionId: undefined,
-			autoApprove: mode.autoApprove?.get(),
 		};
 	}
 

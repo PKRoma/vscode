@@ -224,11 +224,6 @@ export interface ICustomAgent {
 	readonly agents?: readonly string[];
 
 	/**
-	 * When true, all tool calls are auto-approved (YOLO mode) for this agent.
-	 */
-	readonly autoApprove?: boolean;
-
-	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;

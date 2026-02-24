@@ -586,27 +586,6 @@ export interface ILanguageModelToolsService {
 
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
-
-	/**
-	 * Enable YOLO mode (auto-approve all tools) for the given chat session.
-	 */
-	enableSessionYolo(sessionResource: URI): void;
-
-	/**
-	 * Disable YOLO mode for the given chat session.
-	 */
-	disableSessionYolo(sessionResource: URI): void;
-
-	/**
-	 * Check whether YOLO mode is active for the given chat session.
-	 */
-	isSessionYolo(sessionResource: URI): boolean;
-
-	/**
-	 * Enable YOLO mode for just the next request in the given chat session.
-	 * The flag is automatically cleared when the request completes.
-	 */
-	enableNextRequestYolo(sessionResource: URI): void;
 }
 
 

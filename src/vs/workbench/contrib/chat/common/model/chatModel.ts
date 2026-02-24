@@ -314,7 +314,6 @@ export interface IChatRequestModeInfo {
 	modeInstructions: IChatRequestModeInstructions | undefined;
 	modeId: 'ask' | 'agent' | 'edit' | 'autopilot' | 'custom' | 'applyCodeBlock' | undefined;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
-	autoApprove?: boolean;
 }
 
 export interface IChatRequestModeInstructions {

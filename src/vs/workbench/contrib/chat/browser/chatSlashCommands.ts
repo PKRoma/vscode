@@ -222,33 +222,6 @@ export class ChatSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Chat]
 		}, handleAutoApprove));
 		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'yolo',
-			detail: nls.localize('yolo', "Toggle auto-approval of all tool calls"),
-			sortText: 'z1_yolo',
-			executeImmediately: false,
-			silent: true,
-			locations: [ChatAgentLocation.Chat]
-		}, async (prompt, _progress, _history, _location, sessionResource) => {
-			const trimmed = prompt.trim();
-			if (trimmed) {
-				// /yolo <prompt> — enable for next request only, then submit
-				toolsService.enableNextRequestYolo(sessionResource);
-				const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-				if (widget) {
-					widget.acceptInput(trimmed);
-				}
-			} else {
-				// /yolo — toggle session YOLO mode
-				if (toolsService.isSessionYolo(sessionResource)) {
-					toolsService.disableSessionYolo(sessionResource);
-					notificationService.info(nls.localize('yolo.disabled', "YOLO mode disabled for this session"));
-				} else {
-					toolsService.enableSessionYolo(sessionResource);
-					notificationService.info(nls.localize('yolo.enabled', "YOLO mode enabled for this session — all tools will be auto-approved"));
-				}
-			}
-		}));
-		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
