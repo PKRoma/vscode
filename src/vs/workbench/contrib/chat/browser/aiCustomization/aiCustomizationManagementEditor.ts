@@ -61,6 +61,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
@@ -134,7 +135,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
 	private overviewWidget: AICustomizationOverviewWidget | undefined;
-	private lastOverviewRefreshTime = 0;
 	private overviewContentContainer!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
@@ -186,6 +186,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -359,16 +360,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.selectSection(e.elements[0].id);
 			}
 		}));
-
-		this.editorDisposables.add(this.sectionsList.onDidOpen(e => {
-			if (e.element?.id === AICustomizationManagementSection.Overview) {
-				const now = Date.now();
-				if (now - this.lastOverviewRefreshTime > 100) {
-					this.overviewWidget?.refresh();
-					this.lastOverviewRefreshTime = now;
-				}
-			}
-		}));
 	}
 
 	private createContent(): void {
@@ -501,7 +492,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Update Overview counts if selected
 		if (section === AICustomizationManagementSection.Overview) {
 			this.overviewWidget?.refresh();
-			this.lastOverviewRefreshTime = Date.now();
 		}
 
 		// Load items for the new section (only for prompts-based sections)
@@ -774,7 +764,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}));
 		} catch (error) {
-			console.error('Failed to load model for embedded editor:', error);
+			this.logService.error('Failed to load model for embedded editor:', error);
 			this.goBackToList();
 		}
 	}

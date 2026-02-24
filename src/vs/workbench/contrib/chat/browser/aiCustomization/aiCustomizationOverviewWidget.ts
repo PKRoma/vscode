@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, clearNode, Dimension, EventType } from '../../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -21,8 +20,15 @@ import { IMcpWorkbenchService } from '../../../../contrib/mcp/common/mcpTypes.js
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { AICustomizationManagementCommands } from './aiCustomizationManagement.js';
 import * as AICustomizationIcons from './aiCustomizationIcons.js';
+
+/**
+ * When the total count of customizations is at or below this threshold,
+ * show the welcome stepper instead of the dashboard.
+ */
+const WELCOME_MODE_THRESHOLD = 2;
 
 const createCommands: Record<AICustomizationManagementSection, string | undefined> = {
 	[AICustomizationManagementSection.Agents]: AICustomizationManagementCommands.CreateNewAgent,
@@ -106,6 +112,7 @@ export class AICustomizationOverviewWidget extends Disposable {
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -118,6 +125,7 @@ export class AICustomizationOverviewWidget extends Disposable {
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refreshScheduler.schedule()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.refreshScheduler.schedule()));
 		this._register(this.mcpWorkbenchService.onChange(() => this.refreshScheduler.schedule()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.refreshScheduler.schedule()));
 	}
 
 	render(parent: HTMLElement): void {
@@ -132,9 +140,19 @@ export class AICustomizationOverviewWidget extends Disposable {
 
 	async refresh(): Promise<void> {
 		await this.refreshCounts();
-		const newMode = this.totalCount <= 1 ? 'welcome' : 'dashboard';
+		if (this._store.isDisposed) {
+			return;
+		}
+		const newMode = this.totalCount <= WELCOME_MODE_THRESHOLD ? 'welcome' : 'dashboard';
 		if (newMode !== this.currentMode) {
+			const oldMode = this.currentMode;
 			this.renderContent();
+			if (oldMode !== undefined) {
+				const announcement = newMode === 'dashboard'
+					? localize('switchedToDashboard', "Switched to dashboard view")
+					: localize('switchedToWelcome', "Switched to setup guide");
+				status(announcement);
+			}
 		} else {
 			for (const [section, count] of this.counts) {
 				this.updateCountBadge(section, count);
@@ -145,12 +163,15 @@ export class AICustomizationOverviewWidget extends Disposable {
 	private updateCountBadge(section: AICustomizationManagementSection, count: number | undefined): void {
 		const badge = this.badges.get(section);
 		if (badge) {
-			const text = count === undefined ? '--' : `${count}`;
+			const isZeroOrLoading = count === undefined || count === 0;
+			const text = count === undefined ? '--' : (count === 0 ? localize('getStarted', "Get started") : `${count}`);
 			if (badge.textContent !== text) {
 				badge.textContent = text;
 				badge.ariaLive = 'polite';
 			}
 			badge.classList.toggle('loading', count === undefined);
+			badge.classList.toggle('get-started-link', isZeroOrLoading);
+			badge.classList.toggle('count-badge', !isZeroOrLoading);
 
 			const card = this._sectionCards.get(section);
 			if (card) {
@@ -242,7 +263,7 @@ export class AICustomizationOverviewWidget extends Disposable {
 			return;
 		}
 
-		this.currentMode = this.totalCount <= 1 ? 'welcome' : 'dashboard';
+		this.currentMode = this.totalCount <= WELCOME_MODE_THRESHOLD ? 'welcome' : 'dashboard';
 
 		clearNode(this.container);
 		this._renderDisposables.clear();
@@ -290,19 +311,12 @@ export class AICustomizationOverviewWidget extends Disposable {
 
 		// Footer doc link
 		const footer = append(welcome, $('.overview-footer'));
-		const docLink = append(footer, $('a.overview-explore-link'));
+		const docLink = append(footer, $('a.overview-explore-link')) as HTMLAnchorElement;
 		docLink.textContent = localize('exploreDocsLink', "Explore the customization guide");
-		docLink.tabIndex = 0;
+		docLink.href = 'https://code.visualstudio.com/docs/copilot/customization/overview';
 		this._renderDisposables.add(addDisposableListener(docLink, EventType.CLICK, (e: MouseEvent) => {
 			this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/customization/overview'));
 			e.preventDefault();
-		}));
-		this._renderDisposables.add(addDisposableListener(docLink, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const keyboardEvent = new StandardKeyboardEvent(e);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/customization/overview'));
-				e.preventDefault();
-			}
 		}));
 	}
 
@@ -359,36 +373,20 @@ export class AICustomizationOverviewWidget extends Disposable {
 			}));
 		}
 
-		const learnMore = append(actions, $('a.step-learn-more'));
+		const learnMore = append(actions, $('a.step-learn-more')) as HTMLAnchorElement;
 		learnMore.textContent = localize('learnMore', "Learn more");
-		learnMore.tabIndex = 0;
+		learnMore.href = step.docUrl;
 		this._renderDisposables.add(addDisposableListener(learnMore, EventType.CLICK, (e: MouseEvent) => {
 			this.openerService.open(URI.parse(step.docUrl));
 			e.preventDefault();
 		}));
-		this._renderDisposables.add(addDisposableListener(learnMore, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const keyboardEvent = new StandardKeyboardEvent(e);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				this.openerService.open(URI.parse(step.docUrl));
-				e.preventDefault();
-			}
-		}));
 
 		// "View" link for completed steps to navigate
 		if (isComplete) {
-			const viewLink = append(actions, $('a.step-view-link'));
-			viewLink.textContent = localize('viewItems', "View");
-			viewLink.tabIndex = 0;
-			viewLink.role = 'button';
-			this._renderDisposables.add(addDisposableListener(viewLink, EventType.CLICK, () => {
+			const viewButton = append(actions, $('button.step-view-link'));
+			viewButton.textContent = localize('viewItems', "View");
+			this._renderDisposables.add(addDisposableListener(viewButton, EventType.CLICK, () => {
 				this._onDidSelectSection.fire(step.section);
-			}));
-			this._renderDisposables.add(addDisposableListener(viewLink, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				const keyboardEvent = new StandardKeyboardEvent(e);
-				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-					this._onDidSelectSection.fire(step.section);
-					e.preventDefault();
-				}
 			}));
 		}
 	}
@@ -431,34 +429,17 @@ export class AICustomizationOverviewWidget extends Disposable {
 			this.badges.set(item.section, badge);
 
 			// Navigate to section
-			const viewButton = append(row, $('a.advanced-item-action'));
-			viewButton.tabIndex = 0;
-			viewButton.role = 'button';
-
+			const viewButton = append(row, $('button.advanced-item-action'));
 			const commandId = createCommands[item.section];
 			if (count > 0) {
 				viewButton.textContent = localize('viewItems', "View");
 				this._renderDisposables.add(addDisposableListener(viewButton, EventType.CLICK, () => {
 					this._onDidSelectSection.fire(item.section);
 				}));
-				this._renderDisposables.add(addDisposableListener(viewButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const keyboardEvent = new StandardKeyboardEvent(e);
-					if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-						this._onDidSelectSection.fire(item.section);
-						e.preventDefault();
-					}
-				}));
 			} else if (commandId) {
 				viewButton.textContent = item.ctaLabel;
 				this._renderDisposables.add(addDisposableListener(viewButton, EventType.CLICK, () => {
 					this.commandService.executeCommand(commandId);
-				}));
-				this._renderDisposables.add(addDisposableListener(viewButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const keyboardEvent = new StandardKeyboardEvent(e);
-					if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-						this.commandService.executeCommand(commandId);
-						e.preventDefault();
-					}
 				}));
 			}
 		}
@@ -497,8 +478,13 @@ export class AICustomizationOverviewWidget extends Disposable {
 			this._sectionCards.set(sectionId, card);
 			const countLabel = count === undefined ? localize('loading', "loading") : (count === 1 ? localize('oneItem', "1 item") : localize('manyItems', "{0} items", count));
 			card.ariaLabel = localize('sectionCardAriaLabel', "{0}, {1}", meta.label, countLabel);
+			const cardCommandId = createCommands[sectionId];
 			this._renderDisposables.add(addDisposableListener(card, EventType.CLICK, () => {
-				this._onDidSelectSection.fire(sectionId);
+				if (count === 0 && cardCommandId) {
+					this.commandService.executeCommand(cardCommandId);
+				} else {
+					this._onDidSelectSection.fire(sectionId);
+				}
 			}));
 
 			const iconContainer = append(card, $('.section-icon'));
@@ -509,15 +495,9 @@ export class AICustomizationOverviewWidget extends Disposable {
 			append(textContainer, $('.card-title')).textContent = meta.label;
 			append(textContainer, $('.card-description')).textContent = meta.description;
 
-			if (count !== undefined && count > 0) {
-				const badge = append(card, $('.count-badge'));
-				this.badges.set(sectionId, badge);
-				this.updateCountBadge(sectionId, count);
-			} else {
-				const getStarted = append(card, $('span.get-started-link'));
-				getStarted.textContent = localize('getStarted', "Get started");
-				this.badges.set(sectionId, getStarted);
-			}
+			const badge = append(card, $('span'));
+			this.badges.set(sectionId, badge);
+			this.updateCountBadge(sectionId, count);
 		}
 	}
 
@@ -538,7 +518,7 @@ export class AICustomizationOverviewWidget extends Disposable {
 		let nextSection: AICustomizationManagementSection | undefined;
 		for (const section of priorityOrder) {
 			const count = this.counts.get(section);
-			if (count === undefined || count === 0) {
+			if (count === 0) {
 				nextSection = section;
 				break;
 			}
@@ -593,26 +573,31 @@ export class AICustomizationOverviewWidget extends Disposable {
 		// Other sections are async
 		await Promise.allSettled([
 			this.promptsService.getCustomAgents(CancellationToken.None).then(agents => {
+				if (this._store.isDisposed) { return; }
 				const count = agents.length;
 				this.counts.set(AICustomizationManagementSection.Agents, count);
 				this.updateCountBadge(AICustomizationManagementSection.Agents, count);
 			}),
 			this.promptsService.findAgentSkills(CancellationToken.None).then(skills => {
+				if (this._store.isDisposed) { return; }
 				const count = skills?.length ?? 0;
 				this.counts.set(AICustomizationManagementSection.Skills, count);
 				this.updateCountBadge(AICustomizationManagementSection.Skills, count);
 			}),
 			this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None).then(files => {
+				if (this._store.isDisposed) { return; }
 				const count = files.length;
 				this.counts.set(AICustomizationManagementSection.Instructions, count);
 				this.updateCountBadge(AICustomizationManagementSection.Instructions, count);
 			}),
 			this.promptsService.getPromptSlashCommands(CancellationToken.None).then(prompts => {
+				if (this._store.isDisposed) { return; }
 				const count = prompts.length;
 				this.counts.set(AICustomizationManagementSection.Prompts, count);
 				this.updateCountBadge(AICustomizationManagementSection.Prompts, count);
 			}),
 			this.promptsService.getHooks(CancellationToken.None).then(hooksInfo => {
+				if (this._store.isDisposed) { return; }
 				const count = hooksInfo ? Object.values(hooksInfo.hooks).reduce((acc: number, current) => acc + (current?.length ?? 0), 0) : 0;
 				this.counts.set(AICustomizationManagementSection.Hooks, count);
 				this.updateCountBadge(AICustomizationManagementSection.Hooks, count);

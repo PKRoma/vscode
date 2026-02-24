@@ -587,15 +587,25 @@
 
 .ai-customization-overview-welcome .step-learn-more,
 .ai-customization-overview-welcome .step-view-link {
-	font-size: 12px;
+	font-size: inherit;
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
+	border: none;
+	background: transparent;
+	padding: 0;
+	font-family: inherit;
 }
 
 .ai-customization-overview-welcome .step-learn-more:hover,
 .ai-customization-overview-welcome .step-view-link:hover {
 	text-decoration: underline;
+}
+
+.ai-customization-overview-welcome .step-learn-more:focus,
+.ai-customization-overview-welcome .step-view-link:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 /* --- Advanced Collapsible Section --- */
@@ -670,14 +680,23 @@
 }
 
 .ai-customization-overview-welcome .advanced-item-action {
-	font-size: 12px;
+	font-size: inherit;
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
+	border: none;
+	background: transparent;
+	padding: 0;
+	font-family: inherit;
 }
 
 .ai-customization-overview-welcome .advanced-item-action:hover {
 	text-decoration: underline;
+}
+
+.ai-customization-overview-welcome .advanced-item-action:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 /* --- Dashboard Mode --- */
@@ -848,13 +867,9 @@
 	text-decoration: underline;
 }
 
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-	.ai-customization-overview-dashboard .card,
-	.ai-customization-overview-welcome .step-cta,
-	.ai-customization-overview-dashboard .whats-next-cta {
-		transition: none;
-	}
+.ai-customization-overview .overview-explore-link:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 /* Content container visibility */
@@ -1158,6 +1173,11 @@
 	background-color: var(--vscode-toolbar-activeBackground);
 }
 
+.ai-customization-management-editor .editor-back-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
 .ai-customization-management-editor .editor-item-info {
 	display: flex;
 	flex-direction: column;
@@ -1232,6 +1252,9 @@
 @media (prefers-reduced-motion: reduce) {
 	.ai-customization-overview .card,
 	.ai-customization-overview .create-button,
+	.ai-customization-overview-dashboard .card,
+	.ai-customization-overview-welcome .step-cta,
+	.ai-customization-overview-dashboard .whats-next-cta,
 	.ai-customization-management-editor .section-list-item,
 	.ai-customization-group-header .group-info,
 	.ai-customization-list-item .item-right,
