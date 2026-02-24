@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { convertPrivateFields, adjustSourceMap } from '../private-to-property.ts';
-import { SourceMapConsumer, SourceMapGenerator, type RawSourceMap } from 'source-map';
+import { SourceMapConsumer, SourceMapGenerator, type RawSourceMap, type Mapping } from 'source-map';
 
 suite('convertPrivateFields', () => {
 
@@ -452,5 +452,54 @@ suite('adjustSourceMap', () => {
 		const pos = consumer.originalPositionFor({ line: 1, column: editedCheckCol });
 		assert.strictEqual(pos.line, 1);
 		assert.strictEqual(pos.column, code.indexOf('check'));
+	});
+
+	test('unmapped segments are preserved after adjustment', () => {
+		// Create a source map with both mapped and unmapped segments.
+		// Unmapped segments mark generated code that has no original source
+		// (e.g. esbuild class wrappers, runtime helpers).
+		const code = 'var _x; class C { constructor() { this._x = 1; } }';
+		const generator = new SourceMapGenerator();
+		generator.setSourceContent('test.js', code);
+
+		// Mapped segment: 'class' at col 8
+		generator.addMapping({
+			generated: { line: 1, column: 8 },
+			original: { line: 1, column: 8 },
+			source: 'test.js',
+		});
+		// Unmapped segment: 'constructor' at col 18 (generated-only code, no original)
+		generator.addMapping({
+			generated: { line: 1, column: 18 },
+		} as Mapping);
+		// Mapped segment: 'this' at col 34
+		generator.addMapping({
+			generated: { line: 1, column: 34 },
+			original: { line: 1, column: 34 },
+			source: 'test.js',
+		});
+
+		const map = JSON.parse(generator.toString());
+
+		// Apply an edit that shrinks 'var _x; ' (8 chars) to 'var $a;' (7 chars)
+		const adjusted = adjustSourceMap(map, code, [{ start: 0, end: 7, newText: 'var $a;' }]);
+		const consumer = new SourceMapConsumer(adjusted);
+
+		// Collect all mappings
+		const mappings: { line: number; column: number; originalLine: number | null }[] = [];
+		consumer.eachMapping(m => {
+			mappings.push({
+				line: m.generatedLine,
+				column: m.generatedColumn,
+				originalLine: m.originalLine,
+			});
+		});
+
+		// Should have 3 mappings (2 mapped + 1 unmapped), not 2
+		assert.strictEqual(mappings.length, 3, 'Unmapped segment should be preserved');
+
+		// The unmapped segment should have originalLine === null
+		const unmapped = mappings.find(m => m.originalLine === null);
+		assert.ok(unmapped, 'Should have an unmapped segment');
 	});
 });

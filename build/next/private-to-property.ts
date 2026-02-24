@@ -272,7 +272,6 @@ export function adjustSourceMap(
 		const lineEdits = editsByLine.get(mapping.generatedLine - 1); // 0-based for our data
 		const adjustedCol = adjustColumn(mapping.generatedColumn, lineEdits);
 
-		// Some mappings may be unmapped (no original position/source) - skip those.
 		if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
 			const newMapping: Mapping = {
 				generated: { line: mapping.generatedLine, column: adjustedCol },
@@ -283,6 +282,16 @@ export function adjustSourceMap(
 				newMapping.name = mapping.name;
 			}
 			generator.addMapping(newMapping);
+		} else {
+			// Preserve unmapped segments (generated code with no original source).
+			// Dropping these causes debuggers to attribute generated-only code
+			// (class wrappers, runtime helpers) to the nearest prior mapped position.
+			// Note: source-map v0.6.1 types require original/source but the runtime
+			// accepts generated-only mappings for unmapped segments.
+			const unmapped: Omit<Mapping, 'original' | 'source'> = {
+				generated: { line: mapping.generatedLine, column: adjustedCol },
+			};
+			generator.addMapping(unmapped as Mapping);
 		}
 	});
 
