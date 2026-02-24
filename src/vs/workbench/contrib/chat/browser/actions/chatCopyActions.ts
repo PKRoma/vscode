@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -54,11 +55,20 @@ export function registerChatCopyActions() {
 				title: localize2('interactive.copyItem.label', "Copy"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				menu: {
-					id: MenuId.ChatContext,
-					when: ChatContextKeys.responseIsFiltered.negate(),
-					group: 'copy',
-				}
+				icon: Codicon.copy,
+				menu: [
+					{
+						id: MenuId.ChatContext,
+						when: ChatContextKeys.responseIsFiltered.negate(),
+						group: 'copy',
+					},
+					{
+						id: MenuId.ChatMessageTitle,
+						group: 'navigation',
+						order: 5,
+						when: ChatContextKeys.responseIsFiltered.negate(),
+					}
+				]
 			});
 		}
 
