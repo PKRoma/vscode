@@ -23,7 +23,7 @@ import { ILanguageModelToolsService } from '../common/tools/languageModelToolsSe
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { CreateSlashCommandsUsageTracker } from './createSlashCommandsUsageTracker.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 type ChatTipEvent = {
@@ -159,6 +159,16 @@ export interface ITipDefinition {
 		/** If true, exclude the tip until the async file check completes. Default: false. */
 		readonly excludeUntilChecked?: boolean;
 	};
+	/**
+	 * Setting keys that, if changed from their default value, make this tip ineligible.
+	 * The tip won't be shown if the user has already customized the setting it describes.
+	 */
+	readonly excludeWhenSettingsChanged?: string[];
+	/**
+	 * Command IDs that dismiss this tip when clicked from the tip markdown
+	 * while the tip is currently shown.
+	 */
+	readonly dismissWhenCommandsClicked?: string[];
 }
 
 /**
@@ -221,7 +231,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.undoChanges',
-		message: localize('tip.undoChanges', "Tip: Select Restore Checkpoint to undo changes until that point in the chat conversation."),
+		message: localize('tip.undoChanges', "Tip: Select \"Restore Checkpoint\" to undo changes after that point in the chat conversation."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 			ContextKeyExpr.or(
@@ -268,6 +278,19 @@ const TIP_CATALOG: ITipDefinition[] = [
 			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
 		),
 		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: [ChatConfiguration.GlobalAutoApprove],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
+		id: 'tip.agenticBrowser',
+		message: localize('tip.agenticBrowser', "Tip: Enable [agentic browser integration](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D) to let the agent open and interact with pages in the Integrated Browser."),
+		when: ContextKeyExpr.and(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
+		),
+		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
 		id: 'tip.mermaid',
@@ -286,6 +309,8 @@ const TIP_CATALOG: ITipDefinition[] = [
 		message: localize('tip.thinkingPhrases', "Tip: Customize the loading messages shown while the agent works with [thinking phrases](command:workbench.action.openSettings?%5B%22chat.agent.thinking.phrases%22%5D)."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: ['chat.agent.thinking.phrases'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 ];
 
@@ -646,15 +671,15 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		@IChatService private readonly _chatService: IChatService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._tracker = this._register(instantiationService.createInstance(TipEligibilityTracker, TIP_CATALOG));
 		this._createSlashCommandsUsageTracker = this._register(new CreateSlashCommandsUsageTracker(this._chatService, this._storageService, () => this._contextKeyService));
-		this._register(chatEntitlementService.onDidChangeQuotaExceeded(() => {
-			if (chatEntitlementService.quotas.chat?.percentRemaining === 0 && this._shownTip) {
+		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => {
+			if (this._chatEntitlementService.quotas.chat?.percentRemaining === 0 && this._shownTip) {
 				this.hideTip();
 			}
 		}));
@@ -779,6 +804,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		// Only show tips for Copilot
 		if (!this._isCopilotEnabled()) {
+			return undefined;
+		}
+
+		// Tips are only relevant after sign-in has completed.
+		if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 			return undefined;
 		}
 
@@ -925,6 +955,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				return false;
 			}
 		}
+		if (tip.excludeWhenSettingsChanged?.some(setting => this._isSettingModified(setting))) {
+			this._logService.debug('#ChatTips: tip excluded because setting was modified', tip.id, tip.excludeWhenSettingsChanged);
+			return false;
+		}
 		if (tip.when && !contextKeyService.contextMatchesRules(tip.when)) {
 			this._logService.debug('#ChatTips: tip is not eligible due to when clause', tip.id, tip.when.serialize());
 			return false;
@@ -1035,9 +1069,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return;
 		}
 		const enabledCommandSet = new Set(tip.enabledCommands);
+		const dismissCommandSet = new Set(tip.dismissWhenCommandsClicked);
 		this._tipCommandListener.value = this._commandService.onDidExecuteCommand(e => {
 			if (enabledCommandSet.has(e.commandId) && this._shownTip?.id === tip.id) {
 				this._logTipTelemetry(tip.id, 'commandClicked', e.commandId);
+				if (dismissCommandSet.has(e.commandId)) {
+					this.dismissTip();
+				}
 			}
 		});
 	}
