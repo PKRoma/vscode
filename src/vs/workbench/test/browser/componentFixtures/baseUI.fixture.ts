@@ -100,7 +100,7 @@ const themedInputBoxStyles = {
 
 const themedBadgeStyles = {
 	badgeBackground: 'var(--vscode-badge-background)',
-	badgeForeground: 'var(--vscode-badge-foreground)',
+	badgeForeground: 'red',
 	badgeBorder: undefined,
 };
 
