@@ -280,6 +280,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 						{
 							id: CHAT_CONFIG_MENU_ID,
 							when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+							group: '3_configure',
 							order: 100,
 						},
 						{
