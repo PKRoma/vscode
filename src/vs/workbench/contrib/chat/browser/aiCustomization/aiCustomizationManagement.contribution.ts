@@ -274,12 +274,12 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					title: localize2('manageChatCustomizations', "Manage Chat Customizations"),
 					shortTitle: localize2('aiCustomizations', "Chat Customizations"),
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
 					f1: true,
 					menu: [
 						{
 							id: CHAT_CONFIG_MENU_ID,
-							when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+							when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
 							order: 0,
 						},
 						{
