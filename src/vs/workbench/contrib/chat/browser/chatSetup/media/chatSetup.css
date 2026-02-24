@@ -46,8 +46,10 @@
 	/* Footer */
 
 	.chat-setup-dialog-footer {
-		font-size: 11px;
+		font-size: 9px;
 		color: var(--vscode-descriptionForeground);
+		line-height: 1.5em;
+		opacity: 75%;
 	}
 }
 
