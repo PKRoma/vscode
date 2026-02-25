@@ -311,6 +311,15 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Creates a new editor input for use when splitting a singleton editor.
+	 * should override this to return a new editor input to open in the split
+	 * group. Returns `undefined` by default.
+	 */
+	createForSplit(): EditorInput | undefined {
+		return undefined;
+	}
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

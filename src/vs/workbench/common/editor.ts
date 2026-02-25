@@ -849,7 +849,13 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9
+	Scratchpad = 1 << 9,
+
+	/**
+	 * Signals that the singleton editor supports creating
+	 * a new editor input when split is requested.
+	 */
+	CanCreateForSplit = 1 << 10
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
