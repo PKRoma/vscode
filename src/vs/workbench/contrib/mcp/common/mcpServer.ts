@@ -677,10 +677,6 @@ export class McpServer extends Disposable implements IMcpServer {
 				time: Date.now() - start,
 			});
 
-			if (state.state === McpConnectionState.Kind.Error) {
-				this.showInteractiveError(connection, state, debug);
-			}
-
 			// MCP servers that need auth can 'start' but will stop with an interaction-needed
 			// error they first make a request. In this case, wait until the handler fully
 			// initializes before resolving (throwing if it ends up needing auth)

@@ -175,6 +175,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			/not accessible/i,
 			/No matching config rule, denying:/i,
 			/EAI_AGAIN/i,
+			/ENOTFOUND/i,
 			/\bENOENT\b/i,
 			/\b(?:EACCES|EPERM)\b/i,
 		];
