@@ -712,7 +712,6 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error, debug?: boolean) {
-
 		const sandboxSuggestionMessage = cnx.definition.sandboxEnabled ? this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, error) : undefined;
 		if (sandboxSuggestionMessage) {
 			this._confirmAndApplySandboxConfigSuggestion(cnx, error, sandboxSuggestionMessage);
