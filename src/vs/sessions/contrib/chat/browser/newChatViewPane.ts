@@ -11,7 +11,7 @@ import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -229,17 +229,6 @@ class NewChatWidget extends Disposable {
 		const dashboardContainer = dom.append(welcomeElement, dom.$('.sessions-dashboard-container'));
 		this._dashboard = this._register(this.instantiationService.createInstance(SessionsDashboard));
 		dashboardContainer.appendChild(this._dashboard.element);
-
-		// Empty hint — shown only when dashboard is empty
-		const emptyHint = dom.append(welcomeElement, dom.$('.chat-full-welcome-empty-hint'));
-		emptyHint.textContent = localize('dashboard.emptyHint', "Start a new session to get things done.");
-
-		// Toggle dashboard vs empty state
-		this._register(autorun(reader => {
-			const empty = this._dashboard!.isEmpty.read(reader);
-			emptyHint.classList.toggle('hidden', !empty);
-			dashboardContainer.classList.toggle('hidden', empty);
-		}));
 
 		// Initialize model picker
 		this._initDefaultModel();

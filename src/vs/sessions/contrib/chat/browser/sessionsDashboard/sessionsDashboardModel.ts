@@ -8,8 +8,7 @@ import { IObservable, derived, observableValue } from '../../../../../base/commo
 import { AgentSessionStatus, IAgentSession, IAgentSessionsModel, isSessionInProgressStatus } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 
-const MAX_RECENTLY_COMPLETED = 6;
-const RECENTLY_COMPLETED_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_RECENTLY_COMPLETED = 20;
 
 export interface ISessionsDashboardModel {
 	readonly needsInput: IObservable<readonly IAgentSession[]>;
@@ -77,9 +76,6 @@ export class SessionsDashboardModel extends Disposable implements ISessionsDashb
 	}
 
 	private _getRecentlyCompletedSessions(): IAgentSession[] {
-		const now = Date.now();
-		const cutoff = now - RECENTLY_COMPLETED_WINDOW_MS;
-
 		return this._model.sessions
 			.filter(s => {
 				if (s.isArchived()) {
@@ -88,9 +84,7 @@ export class SessionsDashboardModel extends Disposable implements ISessionsDashb
 				if (isSessionInProgressStatus(s.status)) {
 					return false;
 				}
-				// Must have ended within the time window
-				const endTime = s.timing.lastRequestEnded ?? s.timing.created;
-				return endTime >= cutoff;
+				return true;
 			})
 			.sort((a, b) => {
 				const aTime = a.timing.lastRequestEnded ?? a.timing.created;

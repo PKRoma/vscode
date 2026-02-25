@@ -11,16 +11,15 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { getDurationString } from '../../../../../base/common/date.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, isSessionInProgressStatus } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { AcceptToolConfirmationActionId, IToolConfirmationActionContext, SkipToolConfirmationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatToolActions.js';
-import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, IChatSendRequestOptions, IChatToolInvocation, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CHANGES_VIEW_ID } from '../../../changesView/browser/changesView.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 
 export type SessionCardMode = 'row' | 'action-pill';
 
@@ -32,8 +31,8 @@ export class SessionCard extends Disposable {
 
 	private readonly _element: HTMLElement;
 	private readonly _disposables = this._register(new DisposableStore());
-	private _inlineInput: HTMLInputElement | undefined;
 	private _expandedArea: HTMLElement | undefined;
+	private _inlineInput: HTMLInputElement | undefined;
 	private _expanded = false;
 
 	private readonly _onDidSelect = this._register(new Emitter<URI>());
@@ -42,12 +41,16 @@ export class SessionCard extends Disposable {
 	get element(): HTMLElement { return this._element; }
 	get sessionResource(): URI { return this.session.resource; }
 
+	markRead(): void {
+		this._element.classList.add('read');
+	}
+
 	constructor(
 		private readonly session: IAgentSession,
 		mode: SessionCardMode,
-		@ICommandService private readonly commandService: ICommandService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -67,6 +70,10 @@ export class SessionCard extends Disposable {
 		const wasSelected = this._element.classList.contains('selected');
 		this._element.classList.toggle('selected', selected);
 
+		if (selected) {
+			this.markRead();
+		}
+
 		if (selected && !wasSelected) {
 			this._showExpandedArea();
 		} else if (!selected && wasSelected) {
@@ -84,7 +91,8 @@ export class SessionCard extends Disposable {
 	}
 
 	// Row mode //
-	// Layout: [dot] Title / subtitle | duration | progress-bar | STATUS | file-count | chevron
+	// Layout: [dot] Title / subtitle | duration | progress | +X -Y | archive | chevron
+	// For NeedsInput: also shows confirmation message + Approve/Skip inline
 	private _renderRow(): void {
 		const s = this.session;
 
@@ -104,37 +112,48 @@ export class SessionCard extends Disposable {
 			sub.textContent = subtitle;
 		}
 
-		// Middle: duration + progress bar
-		const mid = dom.append(this._element, dom.$('.session-row-mid'));
-		const duration = this._getDuration(s);
-		if (duration) {
-			const durEl = dom.append(mid, dom.$('.session-row-duration'));
-			durEl.textContent = duration;
+		// For NeedsInput sessions: show confirmation message + Approve/Skip in one row
+		if (s.status === AgentSessionStatus.NeedsInput) {
+			const confirmRow = dom.append(left, dom.$('.session-row-confirm-row'));
+
+			const confirmInfo = this._getPendingConfirmationInfo();
+			const msgEl = dom.append(confirmRow, dom.$('.session-row-confirm-message'));
+			msgEl.textContent = confirmInfo ?? localize('confirm.pending', "Waiting for approval...");
+			msgEl.title = confirmInfo ?? '';
+
+			const inlineActions = dom.append(confirmRow, dom.$('.session-row-inline-actions'));
+			this._addBtn(inlineActions, localize('action.approve', "Approve"), Codicon.check, 'primary', () => {
+				this._confirmPendingTools({ type: ToolConfirmKind.UserAction });
+			});
+			this._addBtn(inlineActions, localize('action.skip', "Skip"), Codicon.close, 'secondary', () => {
+				this._confirmPendingTools({ type: ToolConfirmKind.Skipped });
+			});
 		}
 
-		// Mini progress bar for in-progress sessions
-		if (isSessionInProgressStatus(s.status)) {
-			const barContainer = dom.append(mid, dom.$('.session-row-progress'));
-			const bar = dom.append(barContainer, dom.$('.session-row-progress-bar'));
-			bar.classList.add(s.status === AgentSessionStatus.NeedsInput ? 'paused' : 'running');
-		}
-
-		// Right: status badge + file count + chevron
+		// Right: diff stats + archive + chevron
 		const right = dom.append(this._element, dom.$('.session-row-right'));
 
-		// Status badge
-		const badge = dom.append(right, dom.$('.session-row-badge'));
-		badge.classList.add(this._statusKey());
-		badge.textContent = this._statusLabel(s);
-
-		// File count
+		// Diff stats (+X -Y) — always visible when there are changes
 		if (hasValidDiff(s.changes)) {
 			const diff = getAgentChangesSummary(s.changes);
-			if (diff && diff.files > 0) {
-				const count = dom.append(right, dom.$('.session-row-file-count'));
-				count.textContent = String(diff.files);
+			if (diff) {
+				const statsEl = dom.append(right, dom.$('.session-row-diff-stats'));
+				const addedSpan = dom.append(statsEl, dom.$('span.diff-added'));
+				addedSpan.textContent = `+${diff.insertions}`;
+				const removedSpan = dom.append(statsEl, dom.$('span.diff-removed'));
+				removedSpan.textContent = `-${diff.deletions}`;
 			}
 		}
+
+		// Archive button
+		this._addBtn(right, '', Codicon.archive, 'ghost', () => {
+			s.setArchived(true);
+		});
+
+		// Open session button (eye icon)
+		this._addBtn(right, '', Codicon.eye, 'ghost', () => {
+			this.sessionsManagementService.openSession(s.resource);
+		});
 
 		// Chevron (expand/collapse)
 		const chevron = dom.append(right, dom.$('.session-row-chevron'));
@@ -176,36 +195,13 @@ export class SessionCard extends Disposable {
 		}
 		this._expanded = true;
 
+		// Reveal the changes sidebar (don't steal focus)
+		this.viewsService.openView(CHANGES_VIEW_ID, false);
+
 		this._expandedArea = dom.append(this._element, dom.$('.session-row-expanded'));
 		const area = this._expandedArea;
 
-		// Action buttons row
-		const actions = dom.append(area, dom.$('.session-row-expanded-actions'));
-
-		if (this.session.status === AgentSessionStatus.NeedsInput) {
-			this._addBtn(actions, localize('action.approve', "Approve"), Codicon.check, 'primary', () => {
-				this.commandService.executeCommand(AcceptToolConfirmationActionId, { sessionResource: this.session.resource } satisfies IToolConfirmationActionContext);
-			});
-			this._addBtn(actions, localize('action.skip', "Skip"), Codicon.close, 'secondary', () => {
-				this.commandService.executeCommand(SkipToolConfirmationActionId, { sessionResource: this.session.resource } satisfies IToolConfirmationActionContext);
-			});
-		}
-
-		if (hasValidDiff(this.session.changes)) {
-			this._addBtn(actions, localize('action.viewChanges', "View Changes"), Codicon.diffMultiple, 'secondary', () => {
-				this.commandService.executeCommand('chatEditing.viewAllSessionChanges', this.session.resource);
-			});
-		}
-
-		this._addBtn(actions, localize('action.openChat', "Open Chat"), Codicon.arrowRight, 'ghost', () => {
-			this.activeSessionService.openSession(this.session.resource);
-		});
-
-		this._addBtn(actions, '', Codicon.archive, 'ghost', () => {
-			this.session.setArchived(true);
-		});
-
-		// Inline input
+		// Inline chat input
 		const inputWrapper = dom.append(area, dom.$('.session-row-inline-input'));
 		const inlineInput = dom.append(inputWrapper, dom.$('input.session-row-input-field')) as HTMLInputElement;
 		this._inlineInput = inlineInput;
@@ -228,7 +224,7 @@ export class SessionCard extends Disposable {
 			this._sendMessage();
 		}));
 
-		setTimeout(() => this._inlineInput?.focus(), 50);
+		setTimeout(() => inlineInput.focus(), 50);
 	}
 
 	private _hideExpandedArea(): void {
@@ -263,6 +259,74 @@ export class SessionCard extends Disposable {
 		}
 	}
 
+	/**
+	 * Directly confirm or skip all pending tool invocations on the session's chat model.
+	 * This works without a chat widget being open.
+	 */
+	private _confirmPendingTools(reason: { type: ToolConfirmKind.UserAction } | { type: ToolConfirmKind.Skipped }): void {
+		const modelRef = this.chatService.acquireExistingSession(this.session.resource);
+		if (!modelRef) {
+			return;
+		}
+		try {
+			const requests = modelRef.object.getRequests();
+			const lastRequest = requests[requests.length - 1];
+			if (!lastRequest?.response) {
+				return;
+			}
+			for (const item of lastRequest.response.response.value) {
+				if (item.kind === 'toolInvocation') {
+					const state = item.state.get();
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+						state.confirm(reason);
+					}
+				}
+			}
+		} finally {
+			modelRef.dispose();
+		}
+	}
+
+	/**
+	 * Gets a human-readable description of what the pending tool confirmation is about.
+	 */
+	private _getPendingConfirmationInfo(): string | undefined {
+		const modelRef = this.chatService.acquireExistingSession(this.session.resource);
+		if (!modelRef) {
+			return undefined;
+		}
+		try {
+			const requests = modelRef.object.getRequests();
+			const lastRequest = requests[requests.length - 1];
+			if (!lastRequest?.response) {
+				return undefined;
+			}
+			for (const item of lastRequest.response.response.value) {
+				if (item.kind === 'toolInvocation') {
+					const state = item.state.get();
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						// Use the confirmation title/message if available
+						const title = state.confirmationMessages?.title;
+						if (title) {
+							return typeof title === 'string' ? title : title.value;
+						}
+						// Fall back to the invocation message
+						const msg = item.invocationMessage;
+						if (msg) {
+							return typeof msg === 'string' ? msg : msg.value;
+						}
+					}
+					if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+						return localize('confirm.postApproval', "Review tool results");
+					}
+				}
+			}
+			return undefined;
+		} finally {
+			modelRef.dispose();
+		}
+	}
+
 	// Helpers //
 	private _getSubtitle(s: IAgentSession): string | undefined {
 		const repo = s.metadata?.repositoryPath as string | undefined;
@@ -273,29 +337,6 @@ export class SessionCard extends Disposable {
 		return s.providerType !== AgentSessionProviders.Local
 			? `${s.providerLabel}`
 			: undefined;
-	}
-
-	private _getDuration(s: IAgentSession): string | undefined {
-		const start = s.timing.lastRequestStarted ?? s.timing.created;
-		const end = s.timing.lastRequestEnded ?? Date.now();
-		if (end <= start) {
-			return undefined;
-		}
-		const elapsed = Math.max(Math.round((end - start) / 1000) * 1000, 1000);
-		return getDurationString(elapsed, false);
-	}
-
-	private _statusLabel(s: IAgentSession): string {
-		if (s.status === AgentSessionStatus.InProgress) {
-			return localize('badge.running', "RUNNING");
-		}
-		if (s.status === AgentSessionStatus.NeedsInput) {
-			return localize('badge.resume', "RESUME");
-		}
-		if (s.status === AgentSessionStatus.Failed) {
-			return localize('badge.failed', "FAILED");
-		}
-		return localize('badge.done', "DONE");
 	}
 
 	private _addBtn(container: HTMLElement, label: string, icon: ThemeIcon, variant: string, handler: () => void): void {

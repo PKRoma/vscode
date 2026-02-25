@@ -97,6 +97,24 @@ export class AgenticSessionsViewPane extends ViewPane {
 		// Sessions section (top, fills available space)
 		const sessionsSection = DOM.append(sessionsContainer, $('.agent-sessions-section'));
 
+		// Hide the sessions list when the dashboard (new session view) is active.
+		// This shows only the customizations toolbar in the sidebar.
+		const updateSessionsVisibility = () => {
+			const isNewSession = this.contextKeyService.getContextKeyValue<boolean>('isNewChatSession');
+			sessionsSection.style.display = isNewSession ? 'none' : '';
+			// Re-layout after visibility change so the tree sizes correctly
+			if (!isNewSession && this.sessionsControlContainer) {
+				const { offsetHeight, offsetWidth } = this.viewPaneContainer ?? sessionsSection;
+				this.layoutBody(offsetHeight, offsetWidth);
+			}
+		};
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(['isNewChatSession']))) {
+				updateSessionsVisibility();
+			}
+		}));
+		updateSessionsVisibility();
+
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
