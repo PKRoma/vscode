@@ -85,9 +85,18 @@ export class AgentSessionsPicker {
 		const filter = disposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {}));
 
 		picker.anchor = this.anchor;
-		picker.items = this.createPickerItems(filter);
+		picker.items = this.createPickerItems(filter, false);
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
+
+		let showArchived = false;
+		disposables.add(picker.onDidChangeValue(value => {
+			const hasFilter = value.length > 0;
+			if (hasFilter !== showArchived) {
+				showArchived = hasFilter;
+				picker.items = this.createPickerItems(filter, showArchived);
+			}
+		}));
 
 		disposables.add(picker.onDidAccept(e => {
 			const pick = picker.selectedItems[0];
@@ -131,7 +140,7 @@ export class AgentSessionsPicker {
 				await this.agentSessionsService.model.resolve(session.providerType);
 				this.pickAgentSession();
 			} else {
-				picker.items = this.createPickerItems(filter);
+				picker.items = this.createPickerItems(filter, showArchived);
 			}
 		}));
 
@@ -139,9 +148,10 @@ export class AgentSessionsPicker {
 		picker.show();
 	}
 
-	private createPickerItems(filter: AgentSessionsFilter): (ISessionPickItem | IQuickPickSeparator)[] {
+	private createPickerItems(filter: AgentSessionsFilter, includeArchived: boolean): (ISessionPickItem | IQuickPickSeparator)[] {
 		const sessions = this.agentSessionsService.model.sessions
 			.filter(session => !filter.exclude(session))
+			.filter(session => includeArchived || !session.isArchived())
 			.sort(this.sorter.compare.bind(this.sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 

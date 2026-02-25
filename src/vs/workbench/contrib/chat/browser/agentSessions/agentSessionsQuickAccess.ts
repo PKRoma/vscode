@@ -42,9 +42,11 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 
 	protected async _getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+		const includeArchived = filter.length > 0;
 
 		const sessions = this.agentSessionsService.model.sessions
 			.filter(session => !this.filter.exclude(session))
+			.filter(session => includeArchived || !session.isArchived())
 			.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = groupAgentSessionsByDate(sessions);
 
