@@ -28,7 +28,7 @@ export function formatEventDetail(event: IChatDebugEvent): string {
 			if (event.durationInMillis !== undefined) { parts.push(localize('chatDebug.detail.durationMs', "Duration: {0}ms", event.durationInMillis)); }
 			return parts.join('\n');
 		}
-		case 'generic':
+		case 'chatCustomization':
 			return `${event.name}\n${event.details ?? ''}`;
 		case 'subagentInvocation': {
 			const parts = [localize('chatDebug.detail.agent', "Agent: {0}", event.agentName)];

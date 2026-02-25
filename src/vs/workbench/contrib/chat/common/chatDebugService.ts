@@ -55,10 +55,10 @@ export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 }
 
 /**
- * A generic log event for unstructured or miscellaneous messages.
+ * A chat customization event representing loading of skills, hooks, instructions, and agents.
  */
-export interface IChatDebugGenericEvent extends IChatDebugEventCommon {
-	readonly kind: 'generic';
+export interface IChatDebugChatCustomizationEvent extends IChatDebugEventCommon {
+	readonly kind: 'chatCustomization';
 	readonly name: string;
 	readonly details?: string;
 	readonly level: ChatDebugLogLevel;
@@ -107,7 +107,7 @@ export interface IChatDebugAgentResponseEvent extends IChatDebugEventCommon {
 /**
  * Union of all internal chat debug event types.
  */
-export type IChatDebugEvent = IChatDebugToolCallEvent | IChatDebugModelTurnEvent | IChatDebugGenericEvent | IChatDebugSubagentInvocationEvent | IChatDebugUserMessageEvent | IChatDebugAgentResponseEvent;
+export type IChatDebugEvent = IChatDebugToolCallEvent | IChatDebugModelTurnEvent | IChatDebugChatCustomizationEvent | IChatDebugSubagentInvocationEvent | IChatDebugUserMessageEvent | IChatDebugAgentResponseEvent;
 
 export const IChatDebugService = createDecorator<IChatDebugService>('chatDebugService');
 

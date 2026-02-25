@@ -546,11 +546,11 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 
 		const PADDING = 20;
-		// Pin the top of the diagram near the top of the viewport so the start
-		// of the flow is immediately visible. Center horizontally when the
-		// diagram fits; otherwise align to the left edge with padding so
-		// nothing is clipped behind overflow:hidden.
-		this.translateX = Math.max(PADDING, (containerRect.width - svgWidth) / 2);
+		// Center when the diagram fits with room to spare; otherwise left-align
+		// with padding so nothing is clipped behind overflow:hidden.
+		this.translateX = svgWidth <= containerRect.width - 2 * PADDING
+			? (containerRect.width - svgWidth) / 2
+			: PADDING;
 		this.translateY = PADDING;
 		this.applyTransform();
 	}

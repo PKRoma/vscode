@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { ChatDebugLogLevel, IChatDebugChatCustomizationEvent, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { PromptsDebugContribution } from '../../browser/promptsDebugContribution.js';
 import { IPromptDiscoveryLogEntry, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -45,8 +45,8 @@ suite('PromptsDebugContribution', () => {
 		});
 
 		assert.strictEqual(firedEvents.length, 1);
-		const event = firedEvents[0] as IChatDebugGenericEvent;
-		assert.strictEqual(event.kind, 'generic');
+		const event = firedEvents[0] as IChatDebugChatCustomizationEvent;
+		assert.strictEqual(event.kind, 'chatCustomization');
 		assert.ok(event.sessionResource);
 		assert.strictEqual(event.name, 'Load Instructions');
 		assert.strictEqual(event.details, 'Resolved 3 instructions in 12.5ms');
@@ -176,7 +176,7 @@ suite('PromptsDebugContribution', () => {
 			name: 'Test',
 		});
 
-		const event = firedEvents[0] as IChatDebugGenericEvent;
+		const event = firedEvents[0] as IChatDebugChatCustomizationEvent;
 		assert.strictEqual(event.level, ChatDebugLogLevel.Info, 'Default level should be Info');
 	});
 });

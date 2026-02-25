@@ -268,7 +268,7 @@ export class ChatDebugOverviewView extends Disposable {
 		const modelTurns = events.filter(e => e.kind === 'modelTurn');
 		const toolCalls = events.filter(e => e.kind === 'toolCall');
 		const errors = events.filter(e =>
-			(e.kind === 'generic' && e.level === ChatDebugLogLevel.Error) ||
+			(e.kind === 'chatCustomization' && e.level === ChatDebugLogLevel.Error) ||
 			(e.kind === 'toolCall' && e.result === 'error')
 		);
 

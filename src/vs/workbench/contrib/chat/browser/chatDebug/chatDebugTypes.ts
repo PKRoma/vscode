@@ -36,13 +36,13 @@ export const enum LogsViewMode {
 export const CHAT_DEBUG_FILTER_ACTIVE = new RawContextKey<boolean>('chatDebugFilterActive', false);
 export const CHAT_DEBUG_KIND_TOOL_CALL = new RawContextKey<boolean>('chatDebug.kindToolCall', true);
 export const CHAT_DEBUG_KIND_MODEL_TURN = new RawContextKey<boolean>('chatDebug.kindModelTurn', true);
-export const CHAT_DEBUG_KIND_PROMPT_DISCOVERY = new RawContextKey<boolean>('chatDebug.kindPromptDiscovery', true);
+export const CHAT_DEBUG_KIND_CHAT_CUSTOMIZATIONS = new RawContextKey<boolean>('chatDebug.kindChatCustomizations', true);
 export const CHAT_DEBUG_KIND_SUBAGENT = new RawContextKey<boolean>('chatDebug.kindSubagent', true);
 
 // Filter toggle command IDs
 export const CHAT_DEBUG_CMD_TOGGLE_TOOL_CALL = 'chatDebug.filter.toggleToolCall';
 export const CHAT_DEBUG_CMD_TOGGLE_MODEL_TURN = 'chatDebug.filter.toggleModelTurn';
-export const CHAT_DEBUG_CMD_TOGGLE_PROMPT_DISCOVERY = 'chatDebug.filter.togglePromptDiscovery';
+export const CHAT_DEBUG_CMD_TOGGLE_CHAT_CUSTOMIZATIONS = 'chatDebug.filter.toggleChatCustomizations';
 export const CHAT_DEBUG_CMD_TOGGLE_SUBAGENT = 'chatDebug.filter.toggleSubagent';
 
 export class TextBreadcrumbItem extends BreadcrumbsItem {
