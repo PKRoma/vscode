@@ -69,7 +69,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 	getToolData(): IToolData | undefined {
 		const languageIds = this._languageFeaturesService.referenceProvider.registeredLanguageIds;
 
-		if (!languageIds.has('*') && languageIds.size === 0) {
+		if (languageIds.size === 0) {
 			return undefined;
 		}
 
