@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* question carousel - this is above edits and todos */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:empty {
+.interactive-session .chat-question-carousel-widget-container:empty {
 	display: none;
 }
 
 /* input specific styling */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container {
+.interactive-session .chat-question-carousel-widget-container .chat-question-carousel-container {
 	margin: 0;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
@@ -28,7 +28,7 @@
 }
 
 /* container and header */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container {
+.interactive-session .chat-question-carousel-widget-container {
 	width: 100%;
 	position: relative;
 
@@ -108,7 +108,7 @@
 }
 
 /* questions list and freeform area */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-input-container {
+.interactive-session .chat-question-carousel-widget-container .chat-question-input-container {
 	display: flex;
 	flex-direction: column;
 	margin-top: 4px;
@@ -294,7 +294,7 @@
 }
 
 /* footer with step indicator and nav buttons */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-footer-row {
+.interactive-session .chat-question-carousel-widget-container .chat-question-footer-row {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
