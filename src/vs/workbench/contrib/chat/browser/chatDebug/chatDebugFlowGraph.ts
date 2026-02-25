@@ -181,7 +181,7 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		return {
 			id: event.id ?? `event-${events.indexOf(event)}`,
 			kind: event.kind,
-			category: event.kind === 'generic' ? event.category : undefined,
+			category: event.kind === 'chatCustomization' ? event.category : undefined,
 			label: getEventLabel(event),
 			sublabel,
 			description,
@@ -402,7 +402,7 @@ function getEventLabel(event: IChatDebugEvent): string {
 			return event.agentName;
 		case 'agentResponse':
 			return 'Response';
-		case 'generic':
+		case 'chatCustomization':
 			return event.name;
 	}
 }
@@ -453,7 +453,7 @@ function formatDuration(ms: number): string {
 
 function isErrorEvent(event: IChatDebugEvent): boolean {
 	return (event.kind === 'toolCall' && event.result === 'error') ||
-		(event.kind === 'generic' && event.level === 3 /* ChatDebugLogLevel.Error */) ||
+		(event.kind === 'chatCustomization' && event.level === 3 /* ChatDebugLogLevel.Error */) ||
 		(event.kind === 'subagentInvocation' && event.status === 'failed');
 }
 
@@ -499,7 +499,7 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			}
 			return parts.join('\n');
 		}
-		case 'generic': {
+		case 'chatCustomization': {
 			if (event.details) {
 				const details = event.details.trim();
 				return details.length > TOOLTIP_MAX_LENGTH ? details.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : details;

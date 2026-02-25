@@ -153,7 +153,7 @@ export class ChatDebugLogsView extends Disposable {
 				switch (e.kind) {
 					case 'toolCall': return localize('chatDebug.aria.toolCall', "Tool call: {0}{1}", e.toolName, e.result ? ` (${e.result})` : '');
 					case 'modelTurn': return localize('chatDebug.aria.modelTurn', "Model turn: {0}{1}", e.model ?? localize('chatDebug.aria.model', "model"), e.totalTokens ? localize('chatDebug.aria.tokenCount', " {0} tokens", e.totalTokens) : '');
-					case 'generic': return `${e.category ? e.category + ': ' : ''}${e.name}: ${e.details ?? ''}`;
+					case 'chatCustomization': return `${e.category ? e.category + ': ' : ''}${e.name}: ${e.details ?? ''}`;
 					case 'subagentInvocation': return localize('chatDebug.aria.subagent', "Subagent: {0}{1}", e.agentName, e.description ? ` - ${e.description}` : '');
 					case 'userMessage': return localize('chatDebug.aria.userMessage', "User message: {0}", e.message);
 					case 'agentResponse': return localize('chatDebug.aria.agentResponse', "Agent response: {0}", e.message);
@@ -293,7 +293,7 @@ export class ChatDebugLogsView extends Disposable {
 		// Filter by kind toggles (pass category for generic events so only
 		// discovery-category events are affected by the Prompt Discovery toggle)
 		filtered = filtered.filter(e => {
-			const category = e.kind === 'generic' ? e.category : undefined;
+			const category = e.kind === 'chatCustomization' ? e.category : undefined;
 			return this.filterState.isKindVisible(e.kind, category);
 		});
 
@@ -316,7 +316,7 @@ export class ChatDebugLogsView extends Disposable {
 								(e.output?.toLowerCase().includes(term) ?? false);
 						case 'modelTurn':
 							return (e.model?.toLowerCase().includes(term) ?? false);
-						case 'generic':
+						case 'chatCustomization':
 							return e.name.toLowerCase().includes(term) ||
 								(e.details?.toLowerCase().includes(term) ?? false) ||
 								(e.category?.toLowerCase().includes(term) ?? false);

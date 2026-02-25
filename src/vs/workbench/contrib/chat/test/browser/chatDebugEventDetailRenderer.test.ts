@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatDebugLogLevel, IChatDebugAgentResponseEvent, IChatDebugGenericEvent, IChatDebugModelTurnEvent, IChatDebugSubagentInvocationEvent, IChatDebugToolCallEvent, IChatDebugUserMessageEvent } from '../../common/chatDebugService.js';
+import { ChatDebugLogLevel, IChatDebugAgentResponseEvent, IChatDebugChatCustomizationEvent, IChatDebugModelTurnEvent, IChatDebugSubagentInvocationEvent, IChatDebugToolCallEvent, IChatDebugUserMessageEvent } from '../../common/chatDebugService.js';
 import { formatEventDetail } from '../../browser/chatDebug/chatDebugEventDetailRenderer.js';
 
 suite('formatEventDetail', () => {
@@ -74,8 +74,8 @@ suite('formatEventDetail', () => {
 	});
 
 	test('generic event', () => {
-		const event: IChatDebugGenericEvent = {
-			kind: 'generic',
+		const event: IChatDebugChatCustomizationEvent = {
+			kind: 'chatCustomization',
 			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			name: 'Discovery Start',
@@ -88,8 +88,8 @@ suite('formatEventDetail', () => {
 	});
 
 	test('generic event without details', () => {
-		const event: IChatDebugGenericEvent = {
-			kind: 'generic',
+		const event: IChatDebugChatCustomizationEvent = {
+			kind: 'chatCustomization',
 			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			name: 'Something',

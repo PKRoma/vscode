@@ -454,7 +454,7 @@ function getNodeColor(kind: IChatDebugEvent['kind'], isError?: boolean): string 
 			return 'var(--vscode-charts-purple, #b267e6)';
 		case 'agentResponse':
 			return 'var(--vscode-foreground)';
-		case 'generic':
+		case 'chatCustomization':
 			return 'var(--vscode-descriptionForeground)';
 	}
 }
