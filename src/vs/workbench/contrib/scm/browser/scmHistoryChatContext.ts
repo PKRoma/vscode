@@ -17,6 +17,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -26,7 +27,7 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange } from '../common/history.js';
-import { ISCMProvider, ISCMService, ISCMViewService } from '../common/scm.js';
+import { ISCMProvider, ISCMService, ISCMViewService, VIEW_PANE_ID } from '../common/scm.js';
 
 export interface SCMHistoryItemTransferData {
 	readonly name: string;
@@ -333,5 +334,36 @@ registerAction2(class extends Action2 {
 			historyItem: historyItem,
 			kind: 'scmHistoryItemChange',
 		} satisfies ISCMHistoryItemChangeVariableEntry);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.reviewChanges',
+			title: localize('chat.action.scmReviewChanges', 'Review Changes'),
+			f1: false,
+			icon: Codicon.sparkle,
+			menu: {
+				id: MenuId.SCMTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', VIEW_PANE_ID),
+					ContextKeyExpr.notEquals('scmRepositoryCount', 0),
+					ChatContextKeys.enabled
+				),
+				order: 0
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = await chatWidgetService.revealWidget();
+		if (!widget) {
+			return;
+		}
+
+		await widget.acceptInput(localize('reviewChangesPrompt', 'Review my changes'));
 	}
 });
