@@ -28,13 +28,18 @@ export interface IMcpSandboxService {
 	readonly _serviceBrand: undefined;
 	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
 	isEnabled(serverDef: McpServerDefinition, serverLabel?: string): Promise<boolean>;
-	getSandboxConfigSuggestionMessage(serverLabel: string, error: McpConnectionState.Error): string | undefined;
-	applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, error: McpConnectionState.Error): Promise<boolean>;
+	getSandboxConfigSuggestionMessage(serverLabel: string, error: McpConnectionState.Error): SandboxConfigSuggestionResult | undefined;
+	applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, error: McpConnectionState.Error, suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
 }
 
 type SandboxConfigSuggestions = {
 	allowWrite: readonly string[];
 	allowedDomains: readonly string[];
+};
+
+type SandboxConfigSuggestionResult = {
+	message: string;
+	sandboxConfig: IMcpSandboxConfiguration;
 };
 
 type SandboxLaunchDetails = {
@@ -110,7 +115,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return launch;
 	}
 
-	public getSandboxConfigSuggestionMessage(serverLabel: string, error: McpConnectionState.Error): string | undefined {
+	public getSandboxConfigSuggestionMessage(serverLabel: string, error: McpConnectionState.Error): SandboxConfigSuggestionResult | undefined {
 		const suggestions = this._getSandboxConfigSuggestions(error);
 		if (!suggestions) {
 			return undefined;
@@ -130,15 +135,26 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 			suggestionLines.push(localize('mcpSandboxSuggestion.allowWrite', "Add to `sandbox.filesystem.allowWrite`: {0}", shown));
 		}
 
-		return localize(
-			'mcpSandboxSuggestion.message',
-			"The MCP server {0} failed in sandbox mode. VS Code found possible sandbox configuration updates:\n{1}",
-			serverLabel,
-			suggestionLines.join('\n')
-		);
+		const sandboxConfig: IMcpSandboxConfiguration = {};
+		if (allowedDomainsList.length) {
+			sandboxConfig.network = { allowedDomains: [...allowedDomainsList] };
+		}
+		if (allowWriteList.length) {
+			sandboxConfig.filesystem = { allowWrite: [...allowWriteList] };
+		}
+
+		return {
+			message: localize(
+				'mcpSandboxSuggestion.message',
+				"The MCP server {0} failed in sandbox mode. VS Code found possible sandbox configuration updates:\n{1}",
+				serverLabel,
+				suggestionLines.join('\n')
+			),
+			sandboxConfig,
+		};
 	}
 
-	public async applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, error: McpConnectionState.Error): Promise<boolean> {
+	public async applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, error: McpConnectionState.Error, suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
 		const scanTarget = this._toMcpResourceTarget(configTarget);
 		const scanned = await this._mcpResourceScannerService.scanMcpServers(mcpResource, scanTarget);
 		const existingServer = scanned.servers?.[serverName];
@@ -146,20 +162,27 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 			return false;
 		}
 
-		const suggestions = this._getSandboxConfigSuggestions(error, scanned.sandbox);
-		if (!suggestions) {
-			return false;
+		let suggestedAllowedDomains = suggestedSandboxConfig?.network?.allowedDomains ?? [];
+		let suggestedAllowWrite = suggestedSandboxConfig?.filesystem?.allowWrite ?? [];
+
+		if (!suggestedAllowedDomains.length && !suggestedAllowWrite.length) {
+			const suggestions = this._getSandboxConfigSuggestions(error, scanned.sandbox);
+			if (!suggestions) {
+				return false;
+			}
+			suggestedAllowedDomains = [...suggestions.allowedDomains];
+			suggestedAllowWrite = [...suggestions.allowWrite];
 		}
 
 		const currentAllowedDomains = new Set(scanned.sandbox?.network?.allowedDomains ?? []);
-		for (const domain of suggestions.allowedDomains) {
+		for (const domain of suggestedAllowedDomains) {
 			if (domain && !currentAllowedDomains.has(domain)) {
 				currentAllowedDomains.add(domain);
 			}
 		}
 
 		const currentAllowWrite = new Set(scanned.sandbox?.filesystem?.allowWrite ?? []);
-		for (const path of suggestions.allowWrite) {
+		for (const path of suggestedAllowWrite) {
 			if (path && !currentAllowWrite.has(path)) {
 				currentAllowWrite.add(path);
 			}
@@ -211,7 +234,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 					allowedDomains.add(host);
 				}
 			}
-			const hasFsErrorSignal = /\b(?:EACCES|EPERM|ENOENT|fail(?:ed|ure)?)\b/i.test(line);
+			const hasFsErrorSignal = /(?:\b(?:EACCES|EPERM|ENOENT|fail(?:ed|ure)?)\b|not accessible)/i.test(line);
 			if (hasFsErrorSignal) {
 				const path = this._extractSandboxPath(line);
 				if (path && !existingAllowWrite.has(path) && !allowWrite.has(path)) {

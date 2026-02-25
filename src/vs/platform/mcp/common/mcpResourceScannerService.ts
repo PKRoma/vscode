@@ -85,6 +85,12 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	async updateSandboxConfig(sandbox: IMcpSandboxConfiguration, mcpResource: URI, target?: McpResourceTarget): Promise<void> {
 		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
+			if (scannedMcpServers.servers) {
+				for (const server of Object.values(scannedMcpServers.servers)) {
+					delete (server as Mutable<IMcpStdioServerConfiguration>).sandbox;
+				}
+			}
+
 			return {
 				...scannedMcpServers,
 				sandbox,

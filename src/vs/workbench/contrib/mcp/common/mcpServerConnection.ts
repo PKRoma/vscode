@@ -172,6 +172,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	private _toSandboxDiagnosticLogTail(logLines: readonly string[]): string | undefined {
 		const sandboxLinePatterns = [
 			/\b(?:fail(?:ed|ure)?)\b/i,
+			/not accessible/i,
 			/No matching config rule, denying:/i,
 			/EAI_AGAIN/i,
 			/\bENOENT\b/i,

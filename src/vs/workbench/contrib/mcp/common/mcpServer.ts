@@ -712,9 +712,9 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error, debug?: boolean) {
-		const sandboxSuggestionMessage = cnx.definition.sandboxEnabled ? this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, error) : undefined;
-		if (sandboxSuggestionMessage) {
-			this._confirmAndApplySandboxConfigSuggestion(cnx, error, sandboxSuggestionMessage);
+		const sandboxSuggestion = cnx.definition.sandboxEnabled ? this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, error) : undefined;
+		if (sandboxSuggestion) {
+			this._confirmAndApplySandboxConfigSuggestion(cnx, error, sandboxSuggestion);
 			return;
 		}
 
@@ -761,14 +761,14 @@ export class McpServer extends Disposable implements IMcpServer {
 		}
 	}
 
-	private _confirmAndApplySandboxConfigSuggestion(cnx: IMcpServerConnection, error: McpConnectionState.Error, detail: string): void {
+	private _confirmAndApplySandboxConfigSuggestion(cnx: IMcpServerConnection, error: McpConnectionState.Error, suggestion: NonNullable<ReturnType<IMcpSandboxService['getSandboxConfigSuggestionMessage']>>): void {
 		const mcpResource = cnx.definition.presentation?.origin?.uri ?? this.collection.presentation?.origin;
 		const configTarget = this._fullDefinitions.get().collection?.configTarget;
 
 		void this._dialogService.confirm({
 			type: 'warning',
 			message: localize('mcpSandboxSuggestion.confirm.message', "Update sandbox configuration in mcp.json for {0}?", cnx.definition.label),
-			detail,
+			detail: suggestion.message,
 			primaryButton: localize('mcpSandboxSuggestion.confirm.yes', "Yes"),
 			cancelButton: localize('mcpSandboxSuggestion.confirm.no', "No"),
 		}).then(async result => {
@@ -782,7 +782,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			try {
-				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition.label, mcpResource, configTarget, error);
+				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition.label, mcpResource, configTarget, error, suggestion.sandboxConfig);
 				if (updated) {
 					this._notificationService.info(localize('mcpSandboxSuggestion.apply.success', "Updated sandbox configuration for {0} in mcp.json. Restart server.", cnx.definition.label));
 				}

@@ -18,6 +18,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpSandboxConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -163,11 +164,11 @@ class TestMcpSandboxService implements IMcpSandboxService {
 		return Promise.resolve(this.enabled);
 	}
 
-	getSandboxConfigSuggestionMessage(_serverLabel: string, _error: McpConnectionState.Error): string | undefined {
+	getSandboxConfigSuggestionMessage(_serverLabel: string, _error: McpConnectionState.Error): { message: string; sandboxConfig: IMcpSandboxConfiguration } | undefined {
 		return undefined;
 	}
 
-	applySandboxConfigSuggestion(_serverName: string, _mcpResource: URI, _configTarget: ConfigurationTarget, _error: McpConnectionState.Error): Promise<boolean> {
+	applySandboxConfigSuggestion(_serverName: string, _mcpResource: URI, _configTarget: ConfigurationTarget, _error: McpConnectionState.Error, _suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 }
