@@ -72,7 +72,7 @@ suite('ChatModeService', () => {
 	test('should return builtin modes', () => {
 		const modes = chatModeService.getModes();
 
-		assert.strictEqual(modes.builtin.length, 3);
+		assert.strictEqual(modes.builtin.length, 4);
 		assert.strictEqual(modes.custom.length, 0);
 
 		// Check that Ask mode is always present
@@ -89,10 +89,11 @@ suite('ChatModeService', () => {
 		let agents = chatModeService.getModes();
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
 
-		// Without tools agent - Agent mode should not be present
+		// Without tools agent - Agent and Debug modes should not be present
 		chatAgentService.setHasToolsAgent(false);
 		agents = chatModeService.getModes();
 		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
+		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Debug), undefined);
 
 		// Ask and Edit modes should always be present
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Ask));
@@ -104,6 +105,34 @@ suite('ChatModeService', () => {
 		assert.ok(agentMode);
 		assert.strictEqual(agentMode.id, ChatMode.Agent.id);
 		assert.strictEqual(agentMode.kind, ChatModeKind.Agent);
+	});
+
+	test('should include Debug mode as a builtin mode', () => {
+		chatAgentService.setHasToolsAgent(true);
+		const modes = chatModeService.getModes();
+
+		const debugMode = modes.builtin.find(mode => mode.id === ChatModeKind.Debug);
+		assert.ok(debugMode);
+		assert.strictEqual(debugMode.label.get(), 'Debug');
+		assert.strictEqual(debugMode.name.get(), 'debug');
+		assert.strictEqual(debugMode.kind, ChatModeKind.Debug);
+		assert.strictEqual(debugMode.isBuiltin, true);
+	});
+
+	test('should find Debug mode by id', () => {
+		const debugMode = chatModeService.findModeById(ChatModeKind.Debug);
+		assert.ok(debugMode);
+		assert.strictEqual(debugMode.id, ChatMode.Debug.id);
+		assert.strictEqual(debugMode.kind, ChatModeKind.Debug);
+	});
+
+	test('Debug mode should have modeInstructions', () => {
+		const instructions = ChatMode.Debug.modeInstructions?.get();
+		assert.ok(instructions);
+		assert.ok(instructions.content.length > 0);
+		assert.ok(instructions.content.includes('Debug Mode'));
+		assert.ok(instructions.content.includes('insertDebugLogging'));
+		assert.ok(instructions.content.includes('removeDebugLogging'));
 	});
 
 	test('should return undefined for non-existent mode', () => {

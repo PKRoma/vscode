@@ -343,7 +343,7 @@ export class PromptValidator {
 			const modelMetadata = this.findModelByName(modelName);
 			if (!modelMetadata) {
 				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), range, MarkerSeverity.Warning));
-			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
+			} else if ((agentKind === ChatModeKind.Agent || agentKind === ChatModeKind.Debug) && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
 				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), range, MarkerSeverity.Warning));
 			}
 		}
@@ -430,7 +430,7 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (agentKind !== ChatModeKind.Agent) {
+		if (agentKind !== ChatModeKind.Agent && agentKind !== ChatModeKind.Debug) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported when using agents. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 		}
 		let value = attribute.value;

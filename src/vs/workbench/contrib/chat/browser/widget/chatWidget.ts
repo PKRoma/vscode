@@ -1002,7 +1002,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						welcomeContent,
 						{
 							location: this.location,
-							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
+							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent || this.input?.currentModeKind === ChatModeKind.Debug
 						}
 					);
 					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
@@ -2789,7 +2789,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
-		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
+		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent && this.input.currentModeKind !== ChatModeKind.Debug) {
 			agent = ChatMode.Agent.name.get();
 		}
 		// switch to appropriate agent if needed
@@ -2798,7 +2798,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// if not tools to enable are present, we are done
-		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
+		if (tools !== undefined && (this.input.currentModeKind === ChatModeKind.Agent || this.input.currentModeKind === ChatModeKind.Debug)) {
 			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, this.input.selectedLanguageModel.get()?.metadata);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
@@ -2816,8 +2816,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
-		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
-		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
+		const enabledTools = (this.input.currentModeKind === ChatModeKind.Agent || this.input.currentModeKind === ChatModeKind.Debug) ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
+		const enabledSubAgents = (this.input.currentModeKind === ChatModeKind.Agent || this.input.currentModeKind === ChatModeKind.Debug) ? this.input.currentModeObs.get().agents?.get() : undefined;
 		const sessionId = this._viewModel?.model.sessionId;
 		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents, sessionId);
 		await computer.collect(attachedContext, CancellationToken.None);

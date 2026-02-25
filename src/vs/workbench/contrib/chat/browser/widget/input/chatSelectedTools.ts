@@ -135,7 +135,7 @@ export class ChatSelectedTools extends Disposable {
 		// look up the tools in the hierarchy: session > mode > global
 		const currentMode = this._mode.read(r);
 		let currentMap = this._sessionStates.observable.read(r).get(currentMode.id);
-		if (!currentMap && currentMode.kind === ChatModeKind.Agent) {
+		if (!currentMap && (currentMode.kind === ChatModeKind.Agent || currentMode.kind === ChatModeKind.Debug)) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
 				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, lm));
@@ -179,6 +179,9 @@ export class ChatSelectedTools extends Disposable {
 		}
 		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
 			return mode.source?.storage !== PromptsStorage.extension ? ToolsScope.Agent : ToolsScope.Agent_ReadOnly;
+		}
+		if (mode.kind === ChatModeKind.Debug) {
+			return ToolsScope.Global;
 		}
 		return ToolsScope.Global;
 	}

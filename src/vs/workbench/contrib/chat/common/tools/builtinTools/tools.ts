@@ -10,7 +10,9 @@ import { ILanguageModelToolsService } from '../languageModelToolsService.js';
 import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
+import { InsertDebugLoggingTool, InsertDebugLoggingToolData } from './insertDebugLoggingTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
+import { RemoveDebugLoggingTool, RemoveDebugLoggingToolData } from './removeDebugLoggingTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -38,6 +40,15 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 		this._register(toolsService.registerTool(ConfirmationToolWithOptionsData, confirmationTool));
+
+		// Register debug logging tools
+		const insertDebugLoggingTool = instantiationService.createInstance(InsertDebugLoggingTool);
+		this._register(toolsService.registerTool(InsertDebugLoggingToolData, insertDebugLoggingTool));
+		this._register(toolsService.agentToolSet.addTool(InsertDebugLoggingToolData));
+
+		const removeDebugLoggingTool = instantiationService.createInstance(RemoveDebugLoggingTool);
+		this._register(toolsService.registerTool(RemoveDebugLoggingToolData, removeDebugLoggingTool));
+		this._register(toolsService.agentToolSet.addTool(RemoveDebugLoggingToolData));
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
 

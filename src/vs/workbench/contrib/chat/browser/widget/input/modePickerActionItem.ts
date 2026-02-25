@@ -87,14 +87,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			const isDisabledViaPolicy =
-				mode.kind === ChatModeKind.Agent &&
+				(mode.kind === ChatModeKind.Agent || mode.kind === ChatModeKind.Debug) &&
 				agentModeDisabledViaPolicy;
 
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			// Add toolbar actions for Agent modes
 			const toolbarActions: IAction[] = [];
-			if (mode.kind === ChatModeKind.Agent && !isDisabledViaPolicy) {
+			if ((mode.kind === ChatModeKind.Agent || mode.kind === ChatModeKind.Debug) && !isDisabledViaPolicy) {
 				if (mode.uri) {
 					let label, icon, id;
 					if (mode.source?.storage === PromptsStorage.extension) {

@@ -394,7 +394,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
-		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
+		return (mode.kind === ChatModeKind.Agent || mode.kind === ChatModeKind.Debug) && !this.agentService.hasToolsAgent ?
 			ChatModeKind.Edit :
 			mode.kind;
 	}
@@ -405,7 +405,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public get currentModeInfo(): IChatRequestModeInfo {
 		const mode = this._currentModeObservable.get();
-		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = mode.isBuiltin ? this.currentModeKind : 'custom';
+		const modeId: 'ask' | 'agent' | 'edit' | 'debug' | 'custom' | undefined = mode.isBuiltin ? this.currentModeKind : 'custom';
 
 		const modeInstructions = mode.modeInstructions?.get();
 		return {
@@ -1045,7 +1045,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
+		if (this.currentModeKind === ChatModeKind.Agent || this.currentModeKind === ChatModeKind.Debug || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
 		}
 
@@ -1454,7 +1454,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	validateAgentMode(): void {
-		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
+		if (!this.agentService.hasToolsAgent && (this._currentModeObservable.get().kind === ChatModeKind.Agent || this._currentModeObservable.get().kind === ChatModeKind.Debug)) {
 			this.setChatMode(ChatModeKind.Edit);
 		}
 	}

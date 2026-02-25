@@ -63,7 +63,8 @@ export enum ChatConfiguration {
 export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',
-	Agent = 'agent'
+	Agent = 'agent',
+	Debug = 'debug'
 }
 
 export function validateChatMode(mode: unknown): ChatModeKind | undefined {
@@ -71,6 +72,7 @@ export function validateChatMode(mode: unknown): ChatModeKind | undefined {
 		case ChatModeKind.Ask:
 		case ChatModeKind.Edit:
 		case ChatModeKind.Agent:
+		case ChatModeKind.Debug:
 			return mode as ChatModeKind;
 		default:
 			return undefined;
@@ -79,6 +81,14 @@ export function validateChatMode(mode: unknown): ChatModeKind | undefined {
 
 export function isChatMode(mode: unknown): mode is ChatModeKind {
 	return !!validateChatMode(mode);
+}
+
+/**
+ * Returns true if the mode kind has agent-like capabilities (tool access, terminal, etc.).
+ * Both Agent and Debug modes are agent-like.
+ */
+export function isAgentLikeChatMode(mode: ChatModeKind): boolean {
+	return mode === ChatModeKind.Agent || mode === ChatModeKind.Debug;
 }
 
 // Thinking display modes for pinned content

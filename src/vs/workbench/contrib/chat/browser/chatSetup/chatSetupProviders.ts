@@ -153,7 +153,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			isDefault,
 			isCore: true,
 			modes: [mode],
-			when: mode === ChatModeKind.Agent ? ToolsAgentContextKey?.serialize() : undefined,
+			when: (mode === ChatModeKind.Agent || mode === ChatModeKind.Debug) ? ToolsAgentContextKey?.serialize() : undefined,
 			slashCommands: [],
 			disambiguation: [],
 			locations: [location],
@@ -167,7 +167,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		const agent = disposables.add(instantiationService.createInstance(SetupAgent, context, controller, location));
 		disposables.add(chatAgentService.registerAgentImplementation(id, agent));
-		if (mode === ChatModeKind.Agent) {
+		if (mode === ChatModeKind.Agent || mode === ChatModeKind.Debug) {
 			chatAgentService.updateAgent(id, { themeIcon: Codicon.tools });
 		}
 

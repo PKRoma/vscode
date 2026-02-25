@@ -42,7 +42,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: number | undefined;
 			editLinesDeleted: number | undefined;
 
-			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
+			modeId: 'ask' | 'edit' | 'agent' | 'debug' | 'custom' | 'applyCodeBlock' | undefined;
 			modelId: TelemetryTrustedValue<string | undefined>;
 			applyCodeBlockSuggestionId: string | undefined;
 		}, {
@@ -113,7 +113,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: number | undefined;
 			editLinesDeleted: number | undefined;
 
-			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
+			modeId: 'ask' | 'edit' | 'agent' | 'debug' | 'custom' | 'applyCodeBlock' | undefined;
 			modelId: TelemetryTrustedValue<string | undefined>;
 			applyCodeBlockSuggestionId: string | undefined;
 

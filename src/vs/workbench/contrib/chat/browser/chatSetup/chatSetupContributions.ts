@@ -112,7 +112,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 						// Panel Agents
 						const panelAgentDisposables = disposables.add(new DisposableStore());
-						for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
+						for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent, ChatModeKind.Debug]) {
 							const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
 							panelAgentDisposables.add(disposable);
 							panelAgentDisposables.add(agent.onUnresolvableError(() => {

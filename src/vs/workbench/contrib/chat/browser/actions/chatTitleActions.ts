@@ -224,7 +224,7 @@ export function registerChatTitleActions() {
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
 			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
-			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
+			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent || mode === ChatModeKind.Debug)) {
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
 				if (!currentEditingSession) {
 					return;

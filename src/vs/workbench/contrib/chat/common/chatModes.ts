@@ -223,6 +223,12 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			builtinModes.unshift(ChatMode.Agent);
 		}
 		builtinModes.push(ChatMode.Edit);
+
+		// Debug mode available when agent mode is available
+		if (this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy()) {
+			builtinModes.push(ChatMode.Debug);
+		}
+
 		return builtinModes;
 	}
 
@@ -489,18 +495,23 @@ export class BuiltinChatMode implements IChatMode {
 	public readonly description: IObservable<string>;
 	public readonly icon: IObservable<ThemeIcon>;
 	public readonly target: IObservable<Target>;
+	public readonly modeInstructions?: IObservable<IChatModeInstructions>;
 
 	constructor(
 		public readonly kind: ChatModeKind,
 		label: string,
 		description: string,
 		icon: ThemeIcon,
+		modeInstructions?: IChatModeInstructions,
 	) {
 		this.name = constObservable(kind);
 		this.label = constObservable(label);
 		this.description = observableValue('description', description);
 		this.icon = constObservable(icon);
 		this.target = constObservable(Target.Undefined);
+		if (modeInstructions) {
+			this.modeInstructions = constObservable(modeInstructions);
+		}
 	}
 
 	public get isBuiltin(): boolean {
@@ -529,12 +540,60 @@ export namespace ChatMode {
 	export const Ask = new BuiltinChatMode(ChatModeKind.Ask, 'Ask', localize('chatDescription', "Explore and understand your code"), Codicon.question);
 	export const Edit = new BuiltinChatMode(ChatModeKind.Edit, 'Edit', localize('editsDescription', "Edit or refactor selected code"), Codicon.edit);
 	export const Agent = new BuiltinChatMode(ChatModeKind.Agent, 'Agent', localize('agentDescription', "Describe what to build next"), Codicon.agent);
+	export const Debug = new BuiltinChatMode(ChatModeKind.Debug, 'Debug', localize('debugDescription', "Find and fix bugs with logging"), Codicon.debug, {
+		content: `You are in Debug Mode. Follow a structured, hypothesis-driven debugging workflow:
+
+## Workflow
+
+### Phase 1: Understand
+- Read the user's bug description carefully.
+- Explore the relevant code to build context.
+- Generate 2-4 hypotheses about what could be causing the bug.
+- Share these hypotheses with the user.
+
+### Phase 2: Instrument
+- Use the insertDebugLogging tool to add targeted logging statements designed to test your hypotheses.
+- Each logging statement should capture specific variable values, execution paths, or timing information.
+- Prefix all debug log messages with [DEBUG] for easy identification.
+
+### Phase 3: Reproduce
+- Ask the user to reproduce the bug in their application.
+- Tell them to look for [DEBUG] prefixed output in their terminal or console.
+- Use the askQuestions tool to wait for the user to share the runtime output.
+
+### Phase 4: Analyze
+- Analyze the runtime logs to determine which hypothesis is correct.
+- Identify the root cause based on actual runtime data, not speculation.
+- If the logs are inconclusive, add more targeted logging and ask the user to reproduce again.
+
+### Phase 5: Fix
+- Propose a minimal, targeted fix based on the diagnosed root cause.
+- Apply the fix using the standard edit tools.
+- Explain why this fix addresses the root cause.
+
+### Phase 6: Verify
+- Ask the user to verify the fix by reproducing the original scenario.
+- If the bug persists, return to Phase 4 with additional logging.
+
+### Phase 7: Cleanup
+- Once the fix is verified, use the removeDebugLogging tool to remove all instrumentation.
+- Ensure the codebase is clean with only the actual fix remaining.
+
+## Rules
+- NEVER skip the instrumentation step and guess at fixes blindly.
+- ALWAYS use the insertDebugLogging tool rather than manual edits for logging.
+- ALWAYS clean up logging after the bug is fixed using removeDebugLogging.
+- Keep fixes minimal - prefer 2-3 line changes over large refactors.
+- If a hypothesis is disproven by the logs, say so explicitly and move on.`,
+		toolReferences: [],
+	});
 }
 
 export function isBuiltinChatMode(mode: IChatMode): boolean {
 	return mode.id === ChatMode.Ask.id ||
 		mode.id === ChatMode.Edit.id ||
-		mode.id === ChatMode.Agent.id;
+		mode.id === ChatMode.Agent.id ||
+		mode.id === ChatMode.Debug.id;
 }
 
 /**
