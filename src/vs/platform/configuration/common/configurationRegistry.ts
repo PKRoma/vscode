@@ -742,8 +742,12 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					}
 					this.configurationProperties[key] = properties[key];
 					if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
-						// If not set, default deprecationMessage to the markdown source
-						properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
+						// If not set, default deprecationMessage to the markdown source with markdown stripped
+						// since diagnostics don't support markdown rendering
+						properties[key].deprecationMessage = properties[key].markdownDeprecationMessage!
+							.replace(/`#([^#`]*)#`/g, '$1') // strip setting links: `#settingId#` -> settingId
+							.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // strip links: [text](url) -> text
+							.replace(/`([^`]*)`/g, '$1'); // strip inline code: `code` -> code
 					}
 				}
 
