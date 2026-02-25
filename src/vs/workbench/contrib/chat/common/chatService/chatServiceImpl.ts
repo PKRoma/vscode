@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
@@ -40,7 +40,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatResponseErrorDetails, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
@@ -48,7 +48,7 @@ import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
@@ -1061,7 +1061,6 @@ export class ChatService extends Disposable implements IChatService {
 						enableCommandDetection &&
 						(location !== ChatAgentLocation.EditorInline || !this.configurationService.getValue(InlineChatConfigKeys.EnableV2)) &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
-						options?.modeInfo?.kind !== ChatModeKind.Autopilot &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
 						!options?.agentIdSilent
 					) {
@@ -1182,6 +1181,12 @@ export class ChatService extends Disposable implements IChatService {
 
 					shouldProcessPending = !rawResult.errorDetails && !token.isCancellationRequested;
 					request.response?.complete();
+
+					// Auto-retry on error when in auto-approve-all permission level
+					if (rawResult.errorDetails && !token.isCancellationRequested && this._shouldAutoRetry(options, attempt, rawResult.errorDetails)) {
+						this._scheduleAutoRetry(request, options, attempt);
+					}
+
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request!, followups);
@@ -1205,6 +1210,11 @@ export class ChatService extends Disposable implements IChatService {
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
 					request.response?.complete();
+
+					// Auto-retry on error when in auto-approve-all permission level
+					if (!token.isCancellationRequested && this._shouldAutoRetry(options, attempt, rawResult.errorDetails)) {
+						this._scheduleAutoRetry(request, options, attempt);
+					}
 				}
 			} finally {
 				store.dispose();
@@ -1241,6 +1251,30 @@ export class ChatService extends Disposable implements IChatService {
 		if (model && !this._pendingRequests.has(sessionResource)) {
 			this.processNextPendingRequest(model);
 		}
+	}
+
+	private static readonly MAX_AUTO_RETRIES = 5;
+
+	private _shouldAutoRetry(options: IChatSendRequestOptions | undefined, attempt: number, errorDetails?: IChatResponseErrorDetails): boolean {
+		if (options?.modeInfo?.permissionLevel !== ChatPermissionLevel.Autopilot) {
+			return false;
+		}
+		if (attempt >= ChatService.MAX_AUTO_RETRIES) {
+			return false;
+		}
+		// Don't retry rate-limited or quota-exceeded errors
+		if (errorDetails?.isRateLimited || errorDetails?.isQuotaExceeded) {
+			return false;
+		}
+		return true;
+	}
+
+	private _scheduleAutoRetry(request: IChatRequestModel, options: IChatSendRequestOptions | undefined, attempt: number): void {
+		const nextAttempt = attempt + 1;
+		this.logService.info(`[ChatService] Auto-retrying request (attempt ${nextAttempt}/${ChatService.MAX_AUTO_RETRIES}) due to auto-approve-all permission level`);
+		timeout(1000).then(() => {
+			this.resendRequest(request, { ...options, attempt: nextAttempt });
+		});
 	}
 
 	/**

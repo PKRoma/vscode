@@ -63,8 +63,7 @@ export enum ChatConfiguration {
 export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',
-	Agent = 'agent',
-	Autopilot = 'autopilot'
+	Agent = 'agent'
 }
 
 export function validateChatMode(mode: unknown): ChatModeKind | undefined {
@@ -72,11 +71,20 @@ export function validateChatMode(mode: unknown): ChatModeKind | undefined {
 		case ChatModeKind.Ask:
 		case ChatModeKind.Edit:
 		case ChatModeKind.Agent:
-		case ChatModeKind.Autopilot:
 			return mode as ChatModeKind;
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * The permission level controlling tool auto-approval behavior.
+ */
+export enum ChatPermissionLevel {
+	/** Use existing auto-approve settings */
+	Default = 'default',
+	/** Auto-approve all tool calls */
+	Autopilot = 'autopilot'
 }
 
 export function isChatMode(mode: unknown): mode is ChatModeKind {

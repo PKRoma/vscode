@@ -72,7 +72,7 @@ suite('ChatModeService', () => {
 	test('should return builtin modes', () => {
 		const modes = chatModeService.getModes();
 
-		assert.strictEqual(modes.builtin.length, 4);
+		assert.strictEqual(modes.builtin.length, 3);
 		assert.strictEqual(modes.custom.length, 0);
 
 		// Check that Ask mode is always present
@@ -81,24 +81,6 @@ suite('ChatModeService', () => {
 		assert.strictEqual(askMode.label.get(), 'Ask');
 		assert.strictEqual(askMode.name.get(), 'ask');
 		assert.strictEqual(askMode.kind, ChatModeKind.Ask);
-	});
-
-	test('should include Autopilot mode', () => {
-		const modes = chatModeService.getModes();
-
-		const autopilotMode = modes.builtin.find(mode => mode.id === ChatModeKind.Autopilot);
-		assert.ok(autopilotMode, 'Autopilot mode should be present');
-		assert.strictEqual(autopilotMode.label.get(), 'Autopilot');
-		assert.strictEqual(autopilotMode.kind, ChatModeKind.Autopilot);
-	});
-
-	test('Autopilot mode should be positioned after Agent mode', () => {
-		const modes = chatModeService.getModes();
-		const agentIndex = modes.builtin.findIndex(mode => mode.id === ChatModeKind.Agent);
-		const autopilotIndex = modes.builtin.findIndex(mode => mode.id === ChatModeKind.Autopilot);
-		assert.ok(agentIndex >= 0, 'Agent mode should exist');
-		assert.ok(autopilotIndex >= 0, 'Autopilot mode should exist');
-		assert.strictEqual(autopilotIndex, agentIndex + 1, 'Autopilot should be right after Agent');
 	});
 
 	test('should adjust builtin modes based on tools agent availability', () => {

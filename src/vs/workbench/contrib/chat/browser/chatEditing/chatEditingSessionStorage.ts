@@ -267,7 +267,7 @@ interface IModifiedEntryTelemetryInfoDTO {
 	readonly command?: string;
 
 	readonly modelId?: string;
-	readonly modeId?: 'ask' | 'edit' | 'agent' | 'autopilot' | 'custom' | 'applyCodeBlock' | undefined;
+	readonly modeId?: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
 	readonly applyCodeBlockSuggestionId?: EditSuggestionId | undefined;
 	readonly feature?: 'sideBarChat' | 'inlineChat' | undefined;
 }

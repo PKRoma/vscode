@@ -89,10 +89,7 @@ export class ListMcpServerCommand extends Action2 {
 						ContextKeyExpr.and(ContextKeyExpr.equals(`config.${mcpAutoStartConfig}`, McpAutoStartValue.Never), McpContextKeys.hasUnknownTools),
 						McpContextKeys.hasServersWithErrors,
 					),
-					ContextKeyExpr.or(
-						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-						ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Autopilot),
-					),
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 					ChatContextKeys.lockedToCodingAgent.negate(),
 					ChatContextKeys.Setup.hidden.negate(),
 				),

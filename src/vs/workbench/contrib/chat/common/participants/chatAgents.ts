@@ -410,10 +410,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	getDefaultAgent(location: ChatAgentLocation, mode: ChatModeKind = ChatModeKind.Ask): IChatAgent | undefined {
-		// Autopilot uses the same agent as Agent mode
-		const effectiveMode = mode === ChatModeKind.Autopilot ? ChatModeKind.Agent : mode;
 		return this._preferExtensionAgent(this.getActivatedAgents().filter(a => {
-			if (effectiveMode && !a.modes.includes(effectiveMode)) {
+			if (mode && !a.modes.includes(mode)) {
 				return false;
 			}
 

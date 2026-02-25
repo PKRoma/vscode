@@ -40,7 +40,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -1043,6 +1043,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
+		// Auto-Approve All permission level bypasses all tool confirmations
+		if (chatSessionResource) {
+			const model = this._chatService.getSession(chatSessionResource);
+			const request = model?.getRequests().at(-1);
+			if (request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+			}
+		}
+
 		if (!this.isToolEligibleForAutoApproval(tool.data)) {
 			return undefined;
 		}
@@ -1075,6 +1084,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined): Promise<ConfirmedReason | undefined> {
+		// Auto-Approve All permission level bypasses all post-execution confirmations
+		if (chatSessionResource) {
+			const model = this._chatService.getSession(chatSessionResource);
+			const request = model?.getRequests().at(-1);
+			if (request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+			}
+		}
+
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && await this._checkGlobalAutoApprove()) {
 			return { type: ToolConfirmKind.Setting, id: ChatConfiguration.GlobalAutoApprove };
 		}
@@ -1150,7 +1168,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Clean up any pending tool calls that belong to this request
 		for (const [toolCallId, invocation] of this._pendingToolCalls) {
 			if (invocation.chatRequestId === requestId) {
-				invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
 				this._pendingToolCalls.delete(toolCallId);
 			}
 		}
