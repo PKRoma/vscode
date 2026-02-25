@@ -48,6 +48,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -1152,17 +1153,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 }
 
-/**
- * Rewrites VS Code's custom `#settingId#` syntax to standard markdown links
- * so that {@link renderAsPlaintext} can properly extract the setting key as plain text.
- */
-function rewriteSettingLinks(text: string): string {
-	return text.replace(/`#([^#\s`]+)#`|'#([^#\s']+)#'/g, (_, backtickGroup, quoteGroup) => {
-		const settingKey: string = backtickGroup ?? quoteGroup;
-		return `[${settingKey}](#${settingKey})`;
-	});
-}
-
 class RegisterConfigurationSchemasContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -1189,7 +1179,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		for (const key of Object.keys(allSettings.properties)) {
 			const prop = allSettings.properties[key];
 			if (prop.markdownDeprecationMessage && prop.deprecationMessage === prop.markdownDeprecationMessage) {
-				prop.deprecationMessage = renderAsPlaintext({ value: rewriteSettingLinks(prop.markdownDeprecationMessage) });
+				prop.deprecationMessage = renderAsPlaintext({ value: fixSettingLinks(prop.markdownDeprecationMessage) });
 			}
 		}
 
