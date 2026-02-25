@@ -27,7 +27,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, isAgentLikeChatMode } from '../../../common/constants.js';
 import { PromptsStorage, Target } from '../../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
@@ -87,14 +87,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			const isDisabledViaPolicy =
-				(mode.kind === ChatModeKind.Agent || mode.kind === ChatModeKind.Debug) &&
+				isAgentLikeChatMode(mode.kind) &&
 				agentModeDisabledViaPolicy;
 
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			// Add toolbar actions for Agent modes
 			const toolbarActions: IAction[] = [];
-			if ((mode.kind === ChatModeKind.Agent || mode.kind === ChatModeKind.Debug) && !isDisabledViaPolicy) {
+			if (isAgentLikeChatMode(mode.kind) && !isDisabledViaPolicy) {
 				if (mode.uri) {
 					let label, icon, id;
 					if (mode.source?.storage === PromptsStorage.extension) {

@@ -30,7 +30,7 @@ import { ChatMode } from '../../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../../common/requestParser/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
 import { IChatRequestToolEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, isAgentLikeChatMode } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
@@ -153,7 +153,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			isDefault,
 			isCore: true,
 			modes: [mode],
-			when: (mode === ChatModeKind.Agent || mode === ChatModeKind.Debug) ? ToolsAgentContextKey?.serialize() : undefined,
+			when: isAgentLikeChatMode(mode) ? ToolsAgentContextKey?.serialize() : undefined,
 			slashCommands: [],
 			disambiguation: [],
 			locations: [location],
@@ -167,7 +167,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		const agent = disposables.add(instantiationService.createInstance(SetupAgent, context, controller, location));
 		disposables.add(chatAgentService.registerAgentImplementation(id, agent));
-		if (mode === ChatModeKind.Agent || mode === ChatModeKind.Debug) {
+		if (isAgentLikeChatMode(mode)) {
 			chatAgentService.updateAgent(id, { themeIcon: Codicon.tools });
 		}
 

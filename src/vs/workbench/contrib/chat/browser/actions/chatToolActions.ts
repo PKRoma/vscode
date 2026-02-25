@@ -124,10 +124,10 @@ export class ConfigureToolsAction extends Action2 {
 			icon: Codicon.tools,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			precondition: ContextKeyExpr.or(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Debug)),
 			menu: [{
 				when: ContextKeyExpr.and(
-					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+					ContextKeyExpr.or(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Debug)),
 					ChatContextKeys.lockedToCodingAgent.negate(),
 				),
 				id: MenuId.ChatInput,

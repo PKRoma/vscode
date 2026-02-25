@@ -85,7 +85,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEnt
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
 import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, isAgentLikeChatMode, validateChatMode } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
@@ -394,7 +394,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public get currentModeKind(): ChatModeKind {
 		const mode = this._currentModeObservable.get();
-		return (mode.kind === ChatModeKind.Agent || mode.kind === ChatModeKind.Debug) && !this.agentService.hasToolsAgent ?
+		return isAgentLikeChatMode(mode.kind) && !this.agentService.hasToolsAgent ?
 			ChatModeKind.Edit :
 			mode.kind;
 	}
@@ -1045,7 +1045,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentModeKind === ChatModeKind.Agent || this.currentModeKind === ChatModeKind.Debug || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
+		if (isAgentLikeChatMode(this.currentModeKind) || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
 		}
 
@@ -1454,7 +1454,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	validateAgentMode(): void {
-		if (!this.agentService.hasToolsAgent && (this._currentModeObservable.get().kind === ChatModeKind.Agent || this._currentModeObservable.get().kind === ChatModeKind.Debug)) {
+		if (!this.agentService.hasToolsAgent && isAgentLikeChatMode(this._currentModeObservable.get().kind)) {
 			this.setChatMode(ChatModeKind.Edit);
 		}
 	}

@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatMode } from '../../../common/chatModes.js';
-import { ChatModeKind } from '../../../common/constants.js';
+import { ChatModeKind, isAgentLikeChatMode } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -135,7 +135,7 @@ export class ChatSelectedTools extends Disposable {
 		// look up the tools in the hierarchy: session > mode > global
 		const currentMode = this._mode.read(r);
 		let currentMap = this._sessionStates.observable.read(r).get(currentMode.id);
-		if (!currentMap && (currentMode.kind === ChatModeKind.Agent || currentMode.kind === ChatModeKind.Debug)) {
+		if (!currentMap && isAgentLikeChatMode(currentMode.kind)) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
 				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, lm));

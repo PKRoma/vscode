@@ -12,7 +12,7 @@ import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
-import { ChatModeKind } from '../../constants.js';
+import { ChatModeKind, isAgentLikeChatMode } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
@@ -343,7 +343,7 @@ export class PromptValidator {
 			const modelMetadata = this.findModelByName(modelName);
 			if (!modelMetadata) {
 				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), range, MarkerSeverity.Warning));
-			} else if ((agentKind === ChatModeKind.Agent || agentKind === ChatModeKind.Debug) && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
+			} else if (isAgentLikeChatMode(agentKind) && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
 				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), range, MarkerSeverity.Warning));
 			}
 		}
@@ -430,7 +430,7 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (agentKind !== ChatModeKind.Agent && agentKind !== ChatModeKind.Debug) {
+		if (!isAgentLikeChatMode(agentKind)) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported when using agents. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 		}
 		let value = attribute.value;

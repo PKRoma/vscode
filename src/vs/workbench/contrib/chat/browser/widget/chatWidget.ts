@@ -65,7 +65,7 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, isAgentLikeChatMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
@@ -1002,7 +1002,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						welcomeContent,
 						{
 							location: this.location,
-							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent || this.input?.currentModeKind === ChatModeKind.Debug
+							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind !== undefined && isAgentLikeChatMode(this.input.currentModeKind)
 						}
 					);
 					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
@@ -2789,7 +2789,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
-		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent && this.input.currentModeKind !== ChatModeKind.Debug) {
+		if (tools !== undefined && !agent && !isAgentLikeChatMode(this.input.currentModeKind)) {
 			agent = ChatMode.Agent.name.get();
 		}
 		// switch to appropriate agent if needed
@@ -2798,7 +2798,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// if not tools to enable are present, we are done
-		if (tools !== undefined && (this.input.currentModeKind === ChatModeKind.Agent || this.input.currentModeKind === ChatModeKind.Debug)) {
+		if (tools !== undefined && isAgentLikeChatMode(this.input.currentModeKind)) {
 			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, this.input.selectedLanguageModel.get()?.metadata);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
@@ -2816,8 +2816,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
-		const enabledTools = (this.input.currentModeKind === ChatModeKind.Agent || this.input.currentModeKind === ChatModeKind.Debug) ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
-		const enabledSubAgents = (this.input.currentModeKind === ChatModeKind.Agent || this.input.currentModeKind === ChatModeKind.Debug) ? this.input.currentModeObs.get().agents?.get() : undefined;
+		const enabledTools = isAgentLikeChatMode(this.input.currentModeKind) ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
+		const enabledSubAgents = isAgentLikeChatMode(this.input.currentModeKind) ? this.input.currentModeObs.get().agents?.get() : undefined;
 		const sessionId = this._viewModel?.model.sessionId;
 		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents, sessionId);
 		await computer.collect(attachedContext, CancellationToken.None);

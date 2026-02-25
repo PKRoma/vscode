@@ -54,7 +54,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly priority = 120;
 	readonly name = 'agentView';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.inChatInput);
+	readonly when = ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Debug)), ChatContextKeys.inChatInput);
 	getProvider(accessor: ServicesAccessor) {
 		return getChatAccessibilityHelpProvider(accessor, undefined, 'agentView');
 	}
