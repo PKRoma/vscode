@@ -271,7 +271,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					slashCommands: [],
 					disambiguation: [],
 					locations: [ChatAgentLocation.Chat],
-					modes: [ChatModeKind.Ask, ChatModeKind.Agent, ChatModeKind.Edit],
+					modes: [ChatModeKind.Ask, ChatModeKind.Agent, ChatModeKind.Edit, ChatModeKind.Debug],
 				},
 				impl);
 		} else {
