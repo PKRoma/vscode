@@ -38,12 +38,26 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): [IEditorGroup, EditorActivation | undefined] {
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
 	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
-	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all') {
-		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
+	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all' && !isPreferredGroupPartOfModal(preferredGroup, modalEditorPart)) {
+		// Only allow to open in modal group if MODAL_GROUP is explicitly
+		// requested or the preferred group explicitly targets a modal group
 		group = handleModalEditorPart(group, editor, modalEditorPart, editorGroupService);
 	}
 
 	return handleGroupActivation(group, editor, preferredGroup, editorGroupService);
+}
+
+function isPreferredGroupPartOfModal(preferredGroup: PreferredGroup | undefined, modalEditorPart: IModalEditorPart): boolean {
+	if (!preferredGroup) {
+		return false;
+	}
+
+	const groupId = typeof preferredGroup === 'number' ? preferredGroup : preferredGroup.id;
+	if (groupId < 0) {
+		return false; // special group constants (ACTIVE_GROUP, SIDE_GROUP, etc.)
+	}
+
+	return modalEditorPart.groups.some(g => g.id === groupId);
 }
 
 function handleModalEditorPart(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, modalEditorPart: IModalEditorPart, editorGroupService: IEditorGroupsService): IEditorGroup {

@@ -455,6 +455,52 @@ suite('Modal Editor Group', () => {
 		modalPart.close();
 	});
 
+	test('findGroup keeps modal open when preferredGroup explicitly targets a modal group', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Create modal
+		const modalPart = await parts.createModalEditorPart();
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		await modalPart.activeGroup.openEditor(input, { pinned: true });
+
+		assert.ok(parts.activeModalEditorPart);
+
+		// findGroup with the modal group as preferredGroup should keep the modal open
+		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+		const [group] = instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, modalPart.activeGroup));
+
+		assert.strictEqual(parts.activeModalEditorPart, modalPart);
+		assert.strictEqual(group.id, modalPart.activeGroup.id);
+
+		modalPart.close();
+	});
+
+	test('findGroup keeps modal open when preferredGroup is a modal group ID', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Create modal
+		const modalPart = await parts.createModalEditorPart();
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		await modalPart.activeGroup.openEditor(input, { pinned: true });
+
+		assert.ok(parts.activeModalEditorPart);
+
+		// findGroup with the modal group ID as preferredGroup should keep the modal open
+		const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+		const [group] = instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, modalPart.activeGroup.id));
+
+		assert.strictEqual(parts.activeModalEditorPart, modalPart);
+		assert.strictEqual(group.id, modalPart.activeGroup.id);
+
+		modalPart.close();
+	});
+
 	test('modal editor part starts not maximized', async () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
