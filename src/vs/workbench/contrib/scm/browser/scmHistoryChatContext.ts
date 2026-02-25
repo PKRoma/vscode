@@ -343,7 +343,6 @@ registerAction2(class extends Action2 {
 			id: 'workbench.scm.action.reviewChanges',
 			title: localize('chat.action.scmReviewChanges', 'Review Changes'),
 			f1: false,
-			icon: Codicon.sparkle,
 			menu: {
 				id: MenuId.SCMTitle,
 				group: 'navigation',
