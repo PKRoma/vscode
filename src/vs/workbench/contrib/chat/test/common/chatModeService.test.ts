@@ -18,7 +18,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
-import { ChatModeKind } from '../../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage, Target } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
 
@@ -72,7 +72,8 @@ suite('ChatModeService', () => {
 	test('should return builtin modes', () => {
 		const modes = chatModeService.getModes();
 
-		assert.strictEqual(modes.builtin.length, 4);
+		// Debug mode is off by default, so only 3 builtin modes
+		assert.strictEqual(modes.builtin.length, 3);
 		assert.strictEqual(modes.custom.length, 0);
 
 		// Check that Ask mode is always present
@@ -107,8 +108,10 @@ suite('ChatModeService', () => {
 		assert.strictEqual(agentMode.kind, ChatModeKind.Agent);
 	});
 
-	test('should include Debug mode as a builtin mode', () => {
+	test('should include Debug mode as a builtin mode when enabled', async () => {
 		chatAgentService.setHasToolsAgent(true);
+		await configurationService.setUserConfiguration(ChatConfiguration.DebugModeEnabled, true);
+		chatModeService = testDisposables.add(instantiationService.createInstance(ChatModeService));
 		const modes = chatModeService.getModes();
 
 		const debugMode = modes.builtin.find(mode => mode.id === ChatModeKind.Debug);
@@ -119,7 +122,16 @@ suite('ChatModeService', () => {
 		assert.strictEqual(debugMode.isBuiltin, true);
 	});
 
-	test('should find Debug mode by id', () => {
+	test('should hide Debug mode when setting is disabled', () => {
+		chatAgentService.setHasToolsAgent(true);
+		// Default is false, so Debug should not be present
+		const modes = chatModeService.getModes();
+		assert.strictEqual(modes.builtin.find(mode => mode.id === ChatModeKind.Debug), undefined);
+	});
+
+	test('should find Debug mode by id when enabled', async () => {
+		await configurationService.setUserConfiguration(ChatConfiguration.DebugModeEnabled, true);
+		chatModeService = testDisposables.add(instantiationService.createInstance(ChatModeService));
 		const debugMode = chatModeService.findModeById(ChatModeKind.Debug);
 		assert.ok(debugMode);
 		assert.strictEqual(debugMode.id, ChatMode.Debug.id);

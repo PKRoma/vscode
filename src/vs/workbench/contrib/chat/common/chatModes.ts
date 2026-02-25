@@ -80,6 +80,9 @@ export class ChatModeService extends Disposable implements IChatModeService {
 				this.updateAgentModePolicyContextKey();
 				this._onDidChangeChatModes.fire();
 			}
+			if (e.affectsConfiguration(ChatConfiguration.DebugModeEnabled)) {
+				this._onDidChangeChatModes.fire();
+			}
 		}));
 
 		// Ideally we can get rid of the setting to disable agent mode?
@@ -224,8 +227,9 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}
 		builtinModes.push(ChatMode.Edit);
 
-		// Debug mode available when agent mode is available
-		if (this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy()) {
+		// Debug mode available when agent mode is available AND debug mode setting is enabled
+		if ((this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy()) &&
+			this.configurationService.getValue<boolean>(ChatConfiguration.DebugModeEnabled)) {
 			builtinModes.push(ChatMode.Debug);
 		}
 

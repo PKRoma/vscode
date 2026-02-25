@@ -687,6 +687,12 @@ configurationRegistry.registerConfiguration({
 				}
 			}
 		},
+		[ChatConfiguration.DebugModeEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.debugMode.enabled.description', "When enabled, Debug mode can be activated from chat. Debug mode provides a hypothesis-driven debugging workflow that instruments code with logging, collects runtime output, and iterates to find and fix bugs."),
+			default: false,
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
 			type: 'string',
 			description: nls.localize('chat.planAgent.defaultModel.description', "Select the default language model to use for the Plan agent from the available providers."),
