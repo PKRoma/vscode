@@ -419,6 +419,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private _lastModeDebugged = false;
 	private _lastErrorNotificationConnection: IMcpServerConnection | undefined;
 	private _lastErrorNotificationState: McpConnectionState.Kind | undefined;	/** Count of running tool calls, used to detect if sampling is during an LM call */
+	private _isQuietStart: boolean = false;
 	public runningToolCalls = new Set<IMcpToolCallContext>();
 
 	constructor(
@@ -506,7 +507,11 @@ export class McpServer extends Disposable implements IMcpServer {
 				const transitionedToError = this._lastErrorNotificationConnection !== cnx
 					|| this._lastErrorNotificationState !== McpConnectionState.Kind.Error;
 				if (transitionedToError) {
-					this.showInteractiveError(cnx, state, this._lastModeDebugged);
+					if (!this._isQuietStart) {
+						this.showInteractiveError(cnx, state, this._lastModeDebugged);
+					} else {
+						throw new UserInteractionRequiredError('start');
+					}
 				}
 			}
 
@@ -610,6 +615,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			let connection = this._connection.get();
+			this._isQuietStart = !!errorOnUserInteraction;
 			if (connection && McpConnectionState.canBeStarted(connection.state.get().state)) {
 				connection.dispose();
 				connection = undefined;
