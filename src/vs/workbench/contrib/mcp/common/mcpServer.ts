@@ -20,9 +20,9 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
-import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -33,12 +33,14 @@ import { IOutputService } from '../../../services/output/common/output.js';
 import { chatSessionResourceToId } from '../../chat/common/model/chatUri.js';
 import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
+import { McpCommandIds } from './mcpCommandIds.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
+import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
-import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
@@ -415,6 +417,9 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
+	private _lastErrorNotificationConnection: IMcpServerConnection | undefined;
+	private _lastErrorNotificationState: McpConnectionState.Kind | undefined;
+	private _quietStartConnection: IMcpServerConnection | undefined;
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
 	public runningToolCalls = new Set<IMcpToolCallContext>();
 
@@ -433,10 +438,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMcpSamplingService private readonly _samplingService: IMcpSamplingService,
 		@IMcpElicitationService private readonly _elicitationService: IMcpElicitationService,
+		@IMcpSandboxService private readonly _mcpSandboxService: IMcpSandboxService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -491,6 +497,22 @@ export class McpServer extends Disposable implements IMcpServer {
 			} else if (this._tools) {
 				this.resetLiveData();
 			}
+		}));
+
+		this._register(autorun(reader => {
+			const cnx = this._connection.read(reader);
+			const state = cnx?.state.read(reader);
+
+			if (cnx && state?.state === McpConnectionState.Kind.Error) {
+				const transitionedToError = this._lastErrorNotificationConnection !== cnx
+					|| this._lastErrorNotificationState !== McpConnectionState.Kind.Error;
+				if (transitionedToError && this._quietStartConnection !== cnx) {
+					this.showInteractiveError(cnx, state, this._lastModeDebugged);
+				}
+			}
+
+			this._lastErrorNotificationConnection = cnx;
+			this._lastErrorNotificationState = state?.state;
 		}));
 
 		const staticMetadata = derived(reader => {
@@ -614,6 +636,9 @@ export class McpServer extends Disposable implements IMcpServer {
 					taskManager: this._taskManager,
 				});
 				if (!connection) {
+					if (errorOnUserInteraction && this._fullDefinitions.get().server?.sandboxEnabled) {
+						throw new UserInteractionRequiredError('start');
+					}
 					return { state: McpConnectionState.Kind.Stopped };
 				}
 
@@ -629,109 +654,115 @@ export class McpServer extends Disposable implements IMcpServer {
 				}
 			}
 
-			const start = Date.now();
-			let state = await connection.start({
-				createMessageRequestHandler: (params, token) => this._samplingService.sample({
-					isDuringToolCall: this.runningToolCalls.size > 0,
-					server: this,
-					params,
-				}, token).then(r => r.sample),
-				elicitationRequestHandler: async (req, token) => {
-					const serverInfo = connection.handler.get()?.serverInfo;
-					if (serverInfo) {
-						this._telemetryService.publicLog2<ElicitationTelemetryData, ElicitationTelemetryClassification>('mcp.elicitationRequested', {
-							serverName: serverInfo.name,
-							serverVersion: serverInfo.version,
-						});
+			if (errorOnUserInteraction) {
+				this._quietStartConnection = connection;
+			}
+
+			try {
+				const start = Date.now();
+				let state = await connection.start({
+					createMessageRequestHandler: (params, token) => this._samplingService.sample({
+						isDuringToolCall: this.runningToolCalls.size > 0,
+						server: this,
+						params,
+					}, token).then(r => r.sample),
+					elicitationRequestHandler: async (req, token) => {
+						const serverInfo = connection.handler.get()?.serverInfo;
+						if (serverInfo) {
+							this._telemetryService.publicLog2<ElicitationTelemetryData, ElicitationTelemetryClassification>('mcp.elicitationRequested', {
+								serverName: serverInfo.name,
+								serverVersion: serverInfo.version,
+							});
+						}
+
+						const r = await this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, token || CancellationToken.None);
+						r.dispose();
+						return r.value;
 					}
+				});
 
-					const r = await this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, token || CancellationToken.None);
-					r.dispose();
-					return r.value;
+				this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
+					state: McpConnectionState.toKindString(state.state),
+					time: Date.now() - start,
+				});
+
+				// MCP servers that need auth can 'start' but will stop with an interaction-needed
+				// error they first make a request. In this case, wait until the handler fully
+				// initializes before resolving (throwing if it ends up needing auth)
+				if (errorOnUserInteraction && state.state === McpConnectionState.Kind.Running) {
+					let disposable: IDisposable;
+					state = await new Promise<McpConnectionState>((resolve, reject) => {
+						disposable = autorun(reader => {
+							const handler = connection.handler.read(reader);
+							if (handler) {
+								resolve(state);
+							}
+
+							const s = connection.state.read(reader);
+							if (s.state === McpConnectionState.Kind.Stopped && s.reason === 'needs-user-interaction') {
+								reject(new UserInteractionRequiredError('auth'));
+							}
+
+							if (!McpConnectionState.isRunning(s)) {
+								resolve(s);
+							}
+						});
+					}).finally(() => disposable.dispose());
 				}
-			});
 
-			this._telemetryService.publicLog2<ServerBootState, ServerBootStateClassification>('mcp/serverBootState', {
-				state: McpConnectionState.toKindString(state.state),
-				time: Date.now() - start,
-			});
+				if (errorOnUserInteraction && connection.definition.sandboxEnabled && state.state !== McpConnectionState.Kind.Running) {
+					throw new UserInteractionRequiredError('start');
+				}
 
-			if (state.state === McpConnectionState.Kind.Error) {
-				this.showInteractiveError(connection, state, debug);
+				return state;
+			} finally {
+				if (this._quietStartConnection === connection) {
+					this._quietStartConnection = undefined;
+				}
 			}
-
-			// MCP servers that need auth can 'start' but will stop with an interaction-needed
-			// error they first make a request. In this case, wait until the handler fully
-			// initializes before resolving (throwing if it ends up needing auth)
-			if (errorOnUserInteraction && state.state === McpConnectionState.Kind.Running) {
-				let disposable: IDisposable;
-				state = await new Promise<McpConnectionState>((resolve, reject) => {
-					disposable = autorun(reader => {
-						const handler = connection.handler.read(reader);
-						if (handler) {
-							resolve(state);
-						}
-
-						const s = connection.state.read(reader);
-						if (s.state === McpConnectionState.Kind.Stopped && s.reason === 'needs-user-interaction') {
-							reject(new UserInteractionRequiredError('auth'));
-						}
-
-						if (!McpConnectionState.isRunning(s)) {
-							resolve(s);
-						}
-					});
-				}).finally(() => disposable.dispose());
-			}
-
-			return state;
 		}).finally(() => {
 			interaction?.participants.set(this.definition.id, { s: 'resolved' });
 		});
 	}
 
 	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error, debug?: boolean) {
-		if (error.code === 'ENOENT' && cnx.launchDefinition.type === McpServerTransportType.Stdio) {
-			let docsLink: string | undefined;
-			switch (cnx.launchDefinition.command) {
-				case 'uvx':
-					docsLink = `https://aka.ms/vscode-mcp-install/uvx`;
-					break;
-				case 'npx':
-					docsLink = `https://aka.ms/vscode-mcp-install/npx`;
-					break;
-				case 'dnx':
-					docsLink = `https://aka.ms/vscode-mcp-install/dnx`;
-					break;
-				case 'dotnet':
-					docsLink = `https://aka.ms/vscode-mcp-install/dotnet`;
-					break;
-			}
+		const sandboxSuggestionMessage = cnx.definition.sandboxEnabled ? this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, error) : undefined;
+		if (sandboxSuggestionMessage) {
+			this._confirmAndApplySandboxConfigSuggestion(cnx, error, sandboxSuggestionMessage);
+			return;
+		}
 
-			const options: IPromptChoice[] = [{
-				label: localize('mcp.command.showOutput', "Show Output"),
-				run: () => this.showOutput(),
-			}];
+	}
 
-			if (cnx.definition.devMode?.debug?.type === 'debugpy' && debug) {
-				this._notificationService.prompt(Severity.Error, localize('mcpDebugPyHelp', 'The command "{0}" was not found. You can specify the path to debugpy in the `dev.debug.debugpyPath` option.', cnx.launchDefinition.command, cnx.definition.label), [...options, {
-					label: localize('mcpViewDocs', 'View Docs'),
-					run: () => this._openerService.open(URI.parse('https://aka.ms/vscode-mcp-install/debugpy')),
-				}]);
+	private _confirmAndApplySandboxConfigSuggestion(cnx: IMcpServerConnection, error: McpConnectionState.Error, detail: string): void {
+		const mcpResource = cnx.definition.presentation?.origin?.uri ?? this.collection.presentation?.origin;
+		const configTarget = this._fullDefinitions.get().collection?.configTarget;
+
+		void this._dialogService.confirm({
+			type: 'warning',
+			message: localize('mcpSandboxSuggestion.confirm.message', "Update sandbox configuration in mcp.json for {0}?", cnx.definition.label),
+			detail,
+			primaryButton: localize('mcpSandboxSuggestion.confirm.yes', "Yes"),
+			cancelButton: localize('mcpSandboxSuggestion.confirm.no', "No"),
+		}).then(async result => {
+			if (!result.confirmed) {
 				return;
 			}
 
-			if (docsLink) {
-				options.push({
-					label: localize('mcpServerInstall', 'Install {0}', cnx.launchDefinition.command),
-					run: () => this._openerService.open(URI.parse(docsLink)),
-				});
+			if (!mcpResource || configTarget === undefined) {
+				this._notificationService.warn(localize('mcpSandboxSuggestion.apply.unavailable', "Couldn't determine where to update sandbox configuration for {0}.", cnx.definition.label));
+				return;
 			}
 
-			this._notificationService.prompt(Severity.Error, localize('mcpServerNotFound', 'The command "{0}" needed to run {1} was not found.', cnx.launchDefinition.command, cnx.definition.label), options);
-		} else {
-			this._notificationService.warn(localize('mcpServerError', 'The MCP server {0} could not be started: {1}', cnx.definition.label, error.message));
-		}
+			try {
+				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition.label, mcpResource, configTarget, error);
+				if (updated) {
+					this._notificationService.info(localize('mcpSandboxSuggestion.apply.success', "Updated sandbox configuration for {0} in mcp.json. Restart server.", cnx.definition.label));
+				}
+			} catch (e) {
+				this._notificationService.error(localize('mcpSandboxSuggestion.apply.error', "Failed to update sandbox configuration for {0}: {1}", cnx.definition.label, e instanceof Error ? e.message : String(e)));
+			}
+		});
 	}
 
 	public stop(): Promise<void> {

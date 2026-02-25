@@ -47,6 +47,7 @@ export interface IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
 	scanMcpServers(mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServers>;
 	addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
+	updateSandboxConfig(sandbox: IMcpSandboxConfiguration, mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 }
 
@@ -79,6 +80,15 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 				}
 			}
 			return { servers: existingServers, inputs: updatedInputs, sandbox: scannedMcpServers.sandbox };
+		});
+	}
+
+	async updateSandboxConfig(sandbox: IMcpSandboxConfiguration, mcpResource: URI, target?: McpResourceTarget): Promise<void> {
+		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
+			return {
+				...scannedMcpServers,
+				sandbox,
+			};
 		});
 	}
 

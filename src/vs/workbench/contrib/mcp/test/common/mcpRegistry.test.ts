@@ -8,6 +8,7 @@ import * as sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -33,7 +34,7 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
-import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
+import { LazyCollectionState, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 
 class TestConfigurationResolverService {
@@ -160,6 +161,14 @@ class TestMcpSandboxService implements IMcpSandboxService {
 
 	isEnabled(serverDef: McpServerDefinition): Promise<boolean> {
 		return Promise.resolve(this.enabled);
+	}
+
+	getSandboxConfigSuggestionMessage(_serverLabel: string, _error: McpConnectionState.Error): string | undefined {
+		return undefined;
+	}
+
+	applySandboxConfigSuggestion(_serverName: string, _mcpResource: URI, _configTarget: ConfigurationTarget, _error: McpConnectionState.Error): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 }
 

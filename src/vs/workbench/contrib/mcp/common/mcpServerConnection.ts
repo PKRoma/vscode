@@ -16,6 +16,8 @@ import { McpTaskManager } from './mcpTaskManager.js';
 import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
+	private static readonly _maxRecentLogLines = 100;
+
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
 	private readonly _state = observableValue<McpConnectionState>('mcpServerState', { state: McpConnectionState.Kind.Stopped });
 	private readonly _requestHandler = observableValue<McpServerRequestHandler | undefined>('mcpServerRequestHandler', undefined);
@@ -64,16 +66,21 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	private adoptLaunch(launch: IMcpMessageTransport, methods: IMcpClientMethods): IReference<IMcpMessageTransport> {
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
+		const recentLogLines: string[] = [];
 
 		store.add(toDisposable(() => cts.dispose(true)));
 		store.add(launch);
 		store.add(launch.onDidLog(({ level, message }) => {
 			log(this._logger, level, message);
+			recentLogLines.push(message);
+			if (recentLogLines.length > McpServerConnection._maxRecentLogLines) {
+				recentLogLines.splice(0, recentLogLines.length - McpServerConnection._maxRecentLogLines);
+			}
 		}));
 
 		let didStart = false;
 		store.add(autorun(reader => {
-			const state = launch.state.read(reader);
+			const state = this._withLogTailOnError(launch.state.read(reader), recentLogLines);
 			this._state.set(state, undefined);
 			this._logger.info(localize('mcpServer.state', 'Connection state: {0}', McpConnectionState.toString(state)));
 
@@ -102,7 +109,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 							} else {
 								this._logger.error(err);
 							}
-							this._state.set({ state: McpConnectionState.Kind.Error, message }, undefined);
+							this._state.set(this._withLogTailOnError({ state: McpConnectionState.Kind.Error, message }, recentLogLines), undefined);
 						}
 						store.dispose();
 					},
@@ -140,5 +147,42 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 				}
 			});
 		});
+	}
+
+	private _withLogTailOnError(state: McpConnectionState, recentLogLines: readonly string[]): McpConnectionState {
+		if (state.state !== McpConnectionState.Kind.Error) {
+			return state;
+		}
+
+		const logTail = this._toSandboxDiagnosticLogTail(recentLogLines);
+		if (!logTail) {
+			return state;
+		}
+
+		if (state.sandboxDiagnosticLog?.includes(logTail)) {
+			return state;
+		}
+
+		return {
+			...state,
+			sandboxDiagnosticLog: state.sandboxDiagnosticLog ? `${state.sandboxDiagnosticLog}\n${logTail}` : logTail,
+		};
+	}
+
+	private _toSandboxDiagnosticLogTail(logLines: readonly string[]): string | undefined {
+		const sandboxLinePatterns = [
+			/\b(?:fail(?:ed|ure)?)\b/i,
+			/No matching config rule, denying:/i,
+			/EAI_AGAIN/i,
+			/\bENOENT\b/i,
+			/\b(?:EACCES|EPERM)\b/i,
+		];
+
+		const relevant = logLines.filter(line => sandboxLinePatterns.some(pattern => pattern.test(line))).slice(-80);
+		if (!relevant.length) {
+			return undefined;
+		}
+
+		return relevant.join('\n');
 	}
 }

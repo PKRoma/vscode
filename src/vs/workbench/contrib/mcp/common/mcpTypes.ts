@@ -677,6 +677,7 @@ export namespace McpConnectionState {
 		readonly code?: string;
 		readonly shouldRetry?: boolean;
 		readonly message: string;
+		readonly sandboxDiagnosticLog?: string;
 	}
 }
 
