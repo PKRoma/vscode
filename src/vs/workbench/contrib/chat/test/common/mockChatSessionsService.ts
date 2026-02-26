@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -177,6 +177,14 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
+	getNewSessionOptionsForSessionType(_chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
+		return undefined;
+	}
+
+	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: Record<string, string | IChatSessionProviderOptionItem>): void {
+		// noop
+	}
+
 	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void> {
 		await this._onRequestNotifyExtension.fireAsync({ sessionResource, updates }, CancellationToken.None);
 	}
@@ -205,11 +213,19 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.customAgentTarget ?? Target.Undefined;
 	}
 
+	requiresCustomModelsForSessionType(chatSessionType: string): boolean {
+		return this.contributions.find(c => c.type === chatSessionType)?.requiresCustomModels ?? false;
+	}
+
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
 	}
 
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
+		return undefined;
+	}
+
+	async createNewChatSessionItem(_chatSessionType: string, _request: IChatAgentRequest, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		return undefined;
 	}
 

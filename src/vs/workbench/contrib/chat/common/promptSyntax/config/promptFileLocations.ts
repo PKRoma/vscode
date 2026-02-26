@@ -111,6 +111,7 @@ export enum PromptFileSource {
 	ConfigPersonal = 'config-personal',
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
+	Plugin = 'plugin',
 }
 
 /**
@@ -167,6 +168,7 @@ export const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 export const DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 	{ path: CLAUDE_RULES_SOURCE_FOLDER, source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/.copilot/instructions', source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
 	{ path: '~/' + CLAUDE_RULES_SOURCE_FOLDER, source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
@@ -183,6 +185,7 @@ export const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: AGENTS_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 	{ path: CLAUDE_AGENTS_SOURCE_FOLDER, source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/' + CLAUDE_AGENTS_SOURCE_FOLDER, source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
 /**
@@ -202,6 +205,14 @@ export const DEFAULT_HOOK_FILE_PATHS: readonly IPromptSourceFolder[] = [
 function isInAgentsFolder(fileUri: URI): boolean {
 	const dir = dirname(fileUri.path);
 	return dir.endsWith('/' + AGENTS_SOURCE_FOLDER) || dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER);
+}
+
+/**
+ * Helper function to check if a file is directly in the .claude/agents/ folder.
+ */
+export function isInClaudeAgentsFolder(fileUri: URI): boolean {
+	const dir = dirname(fileUri.path);
+	return dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER);
 }
 
 /**

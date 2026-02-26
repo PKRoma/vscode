@@ -29,7 +29,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -168,6 +168,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						supportsSymbolAttachments: {
 							description: localize('chatSessionsExtPoint.supportsSymbolAttachments', 'Whether this chat session supports attaching symbols.'),
 							type: 'boolean'
+						},
+						supportsPromptAttachments: {
+							description: localize('chatSessionsExtPoint.supportsPromptAttachments', 'Whether this chat session supports attaching prompts.'),
+							type: 'boolean'
 						}
 					}
 				},
@@ -200,14 +204,14 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
-				isReadOnly: {
-					description: localize('chatSessionsExtPoint.isReadOnly', 'Whether this session type is for read-only agents that do not support interactive chat. This flag is incompatible with \'canDelegate\'.'),
-					type: 'boolean',
-					default: false
-				},
 				customAgentTarget: {
 					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker that prefers custom agents whose target property matches this value. Custom agents without a target property are still shown in all session types. This enables the use of standard agent/mode with contributed sessions.'),
 					type: 'string'
+				},
+				requiresCustomModels: {
+					description: localize('chatSessionsExtPoint.requiresCustomModels', 'When set, the chat session will show a filtered model picker that prefers custom models. This enables the use of standard model picker with contributed sessions.'),
+					type: 'boolean',
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -288,6 +292,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
+	private readonly _sessionTypeNewSessionOptions: Map<string, Record<string, string | IChatSessionProviderOptionItem>> = new Map();
 	private readonly _sessionTypeIcons: Map<string, ThemeIcon | { light: URI; dark: URI }> = new Map();
 	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
@@ -571,9 +576,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 					if (chatOptions) {
 						const resource = URI.revive(chatOptions.resource);
-						const ref = await chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
-						await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
-						ref?.dispose();
+						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						try {
+							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+							if (result.kind === 'queued') {
+								await result.deferred;
+							} else if (result.kind === 'sent') {
+								await result.data.responseCompletePromise;
+							}
+						} finally {
+							ref?.dispose();
+						}
 					}
 				}
 			}),
@@ -653,7 +666,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
-		if (contribution.isReadOnly || contribution.canDelegate) {
+		if (contribution.canDelegate) {
 			disposableStore.add(this._registerAgent(contribution, ext));
 			disposableStore.add(this._registerCommands(contribution));
 		}
@@ -988,14 +1001,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return description ? renderAsPlaintext(description, { useLinkFormatter: true }) : '';
 	}
 
+	async createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		const controllerData = this._itemControllers.get(chatSessionType);
+		if (!controllerData) {
+			return undefined;
+		}
+
+		await controllerData.initialRefresh;
+		return controllerData.controller.newChatSessionItem?.(request, token);
+	}
+
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		const existingSessionData = this._sessions.get(sessionResource);
-		if (existingSessionData) {
-			return existingSessionData.session;
+		{
+			const existingSessionData = this._sessions.get(sessionResource);
+			if (existingSessionData) {
+				return existingSessionData.session;
+			}
 		}
 
 		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
+		}
+
+		// Check again after async provider resolution
+		{
+			const existingSessionData = this._sessions.get(sessionResource);
+			if (existingSessionData) {
+				return existingSessionData.session;
+			}
 		}
 
 		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
@@ -1004,13 +1037,42 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
-		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		let session: IChatSession;
+		const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
+		if (sessionResource.path.startsWith('/untitled') && newSessionOptions) {
+			session = {
+				sessionResource: sessionResource,
+				onWillDispose: Event.None,
+				history: [],
+				options: newSessionOptions ?? {},
+				dispose: () => { }
+			};
+
+			for (const [optionId, value] of Object.entries(newSessionOptions ?? {})) {
+				this.setSessionOption(sessionResource, optionId, value);
+			}
+		} else {
+			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		}
+
+		// Make sure another session wasn't created while we were awaiting the provider
+		{
+			const existingSessionData = this._sessions.get(sessionResource);
+			if (existingSessionData) {
+				session.dispose();
+				return existingSessionData.session;
+			}
+		}
+
 		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, resource => {
 			sessionData.dispose();
 			this._sessions.delete(resource);
 		});
 
 		this._sessions.set(sessionResource, sessionData);
+
+		// Make sure any listeners are aware of the new session and its options
+		this._onDidChangeSessionOptions.fire(sessionResource);
 
 		return session;
 	}
@@ -1047,6 +1109,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined {
 		return this._sessionTypeOptions.get(chatSessionType);
+	}
+
+	public getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
+		return this._sessionTypeNewSessionOptions.get(chatSessionType);
+	}
+
+	public setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void {
+		this._sessionTypeNewSessionOptions.set(chatSessionType, options);
 	}
 
 	/**
@@ -1123,6 +1193,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return contribution?.customAgentTarget ?? Target.Undefined;
 	}
 
+	public requiresCustomModelsForSessionType(chatSessionType: string): boolean {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return !!contribution?.requiresCustomModels;
+	}
+
 	public getContentProviderSchemes(): string[] {
 		return Array.from(this._contentProviders.keys());
 	}
@@ -1184,6 +1259,7 @@ export enum ChatSessionPosition {
 type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 };
 
 export type NewChatSessionOpenOptions = {
@@ -1247,6 +1323,17 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	// Send initial prompt if provided
 	if (chatSendOptions) {
 		try {
+			// Set initial session options on the model before sending the request,
+			// so that the contributed session provider can read them.
+			if (chatSendOptions.initialSessionOptions) {
+				const model = chatService.getSession(resource);
+				if (model?.contributedChatSession) {
+					model.setContributedChatSession({
+						...model.contributedChatSession,
+						initialSessionOptions: chatSendOptions.initialSessionOptions,
+					});
+				}
+			}
 			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext: chatSendOptions.attachedContext });
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
