@@ -244,13 +244,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 
 			const variableSet = new ChatRequestVariableSet();
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined); // agents can not call subagents
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined, invocation.context.sessionResource); // agents can not call subagents
 			await computer.collect(variableSet, token);
 
 			// Collect hooks from hook .json files
 			let collectedHooks: IChatRequestHooks | undefined;
 			try {
-				const info = await this.promptsService.getHooks(token);
+				const info = await this.promptsService.getHooks(token, invocation.context.sessionResource);
 				collectedHooks = info?.hooks;
 			} catch (error) {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);

@@ -1345,7 +1345,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
@@ -1409,7 +1409,7 @@ export interface IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionResource: URI): void;
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void;
 	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
@@ -1485,7 +1485,7 @@ export interface IChatSessionStartOptions {
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
 
 export type ChatStopCancellationNoopEvent = {
-	source: 'cancelAction' | 'chatService';
+	source: string;
 	reason: 'noWidget' | 'noViewModel' | 'noPendingRequest' | 'requestAlreadyCanceled' | 'requestIdUnavailable';
 	requestInProgress: 'true' | 'false' | 'unknown';
 	pendingRequests: number;
@@ -1498,4 +1498,18 @@ export type ChatStopCancellationNoopClassification = {
 	pendingRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of queued pending requests at no-op time when known.'; isMeasurement: true };
 	owner: 'roblourens';
 	comment: 'Tracks possible no-op stop cancellation paths.';
+};
+
+export const ChatPendingRequestChangeEventName = 'chat.pendingRequestChange';
+
+export type ChatPendingRequestChangeEvent = {
+	action: 'add' | 'remove' | 'notCancelable';
+	source: string;
+};
+
+export type ChatPendingRequestChangeClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a pending request was added or removed.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The method that triggered the pending request change.' };
+	owner: 'roblourens';
+	comment: 'Tracks pending request lifecycle changes in the chat service.';
 };

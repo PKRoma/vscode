@@ -116,7 +116,7 @@ function createModelAction(
  * 2. Promoted section (selected + recently used + featured models from control manifest)
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
- * 3. Other Models (collapsible toggle, sorted by vendor then name)
+ * 3. Other Models (collapsible toggle, available first, then sorted by vendor then name)
  *    - Last item is "Manage Models..." (always visible during filtering)
  */
 export function buildModelPickerItems(
@@ -128,12 +128,11 @@ export function buildModelPickerItems(
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	manageSettingsUrl: string | undefined,
+	canManageModels: boolean,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
-	const isPro = isProUser(chatEntitlementService.entitlement);
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
-	let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	if (models.length === 0) {
 		items.push(createModelItem({
 			id: 'auto',
@@ -144,7 +143,29 @@ export function buildModelPickerItems(
 			label: localize('chat.modelPicker.auto', "Auto"),
 			run: () => { }
 		}));
-	} else {
+	}
+
+	if (!canManageModels) {
+		// Flat list: auto first, then all models sorted alphabetically
+		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+		if (autoModel) {
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel));
+		}
+		const sortedModels = models
+			.filter(m => m !== autoModel)
+			.sort((a, b) => {
+				const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
+				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
+			});
+		for (const model of sortedModels) {
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model));
+		}
+		return items;
+	}
+
+	const isPro = isProUser(chatEntitlementService.entitlement);
+	let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+	if (models.length) {
 		// Collect all available models into lookup maps
 		const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 		const modelsByMetadataId = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
@@ -244,10 +265,15 @@ export function buildModelPickerItems(
 			}
 		}
 
-		// Render promoted section: sorted alphabetically by name
+		// Render promoted section: available first, then sorted alphabetically by name
 		let hasShownActionLink = false;
 		if (promotedItems.length > 0) {
 			promotedItems.sort((a, b) => {
+				const aAvail = a.kind === 'available' ? 0 : 1;
+				const bAvail = b.kind === 'available' ? 0 : 1;
+				if (aAvail !== bAvail) {
+					return aAvail - bAvail;
+				}
 				const aName = a.kind === 'available' ? a.model.metadata.name : a.entry.label;
 				const bName = b.kind === 'available' ? b.model.metadata.name : b.entry.label;
 				return aName.localeCompare(bName);
@@ -270,6 +296,13 @@ export function buildModelPickerItems(
 		otherModels = models
 			.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id))
 			.sort((a, b) => {
+				const aEntry = controlModels[a.metadata.id] ?? controlModels[a.identifier];
+				const bEntry = controlModels[b.metadata.id] ?? controlModels[b.identifier];
+				const aAvail = aEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, aEntry.minVSCodeVersion) ? 1 : 0;
+				const bAvail = bEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, bEntry.minVSCodeVersion) ? 1 : 0;
+				if (aAvail !== bAvail) {
+					return aAvail - bAvail;
+				}
 				const aCopilot = a.metadata.vendor === 'copilot' ? 0 : 1;
 				const bCopilot = b.metadata.vendor === 'copilot' ? 0 : 1;
 				if (aCopilot !== bCopilot) {
@@ -340,6 +373,22 @@ export function buildModelPickerItems(
 	}
 
 	return items;
+}
+
+export function getModelPickerAccessibilityProvider() {
+	return {
+		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+			return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
+		},
+		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
+			switch (element.kind) {
+				case ActionListItemKind.Action: return 'menuitemradio';
+				case ActionListItemKind.Separator: return 'separator';
+				default: return 'separator';
+			}
+		},
+		getWidgetRole: () => 'menu',
+	} as const;
 }
 
 function createUnavailableModelItem(
@@ -503,13 +552,9 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const showCuratedModels = this._delegate.showCuratedModels?.() ?? true;
 		const isPro = isProUser(this._entitlementService.entitlement);
-		let controlModelsForTier: IStringDictionary<IModelControlEntry> = {};
-		if (showCuratedModels) {
-			const manifest = this._languageModelsService.getModelsControlManifest();
-			controlModelsForTier = isPro ? manifest.paid : manifest.free;
-		}
+		const manifest = this._languageModelsService.getModelsControlManifest();
+		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
@@ -519,8 +564,9 @@ export class ModelPickerWidget extends Disposable {
 			this._updateService.state.type,
 			onSelect,
 			this._productService.defaultChatAgent?.manageSettingsUrl,
+			this._delegate.canManageModels(),
 			this._commandService,
-			this._entitlementService
+			this._entitlementService,
 		);
 
 		const listOptions = {
@@ -555,19 +601,7 @@ export class ModelPickerWidget extends Disposable {
 			anchorElement,
 			undefined,
 			[],
-			{
-				isChecked(element) {
-					return element.kind === 'action' && !!element?.item?.checked;
-				},
-				getRole: (e) => {
-					switch (e.kind) {
-						case 'action': return 'menuitemcheckbox';
-						case 'separator': return 'separator';
-						default: return 'separator';
-					}
-				},
-				getWidgetRole: () => 'menu',
-			},
+			getModelPickerAccessibilityProvider(),
 			listOptions
 		);
 	}
