@@ -44,6 +44,7 @@ export type OpenExternalOptions = {
 	readonly allowContributedOpeners?: boolean | string;
 	readonly fromWorkspace?: boolean;
 	readonly skipValidation?: boolean;
+	readonly skipIntegratedBrowser?: boolean;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
