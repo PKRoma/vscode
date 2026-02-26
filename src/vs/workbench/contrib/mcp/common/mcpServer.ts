@@ -420,6 +420,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private _lastErrorNotificationConnection: IMcpServerConnection | undefined;
 	private _lastErrorNotificationState: McpConnectionState.Kind | undefined;
 	private _isQuietStart = false;
+	private _isSandboxSuggestionDialogVisible = false;
 	private _potentialSandboxBlocks: IMcpPotentialSandboxBlock[] = [];
 	private _potentialSandboxBlockListener = this._register(new MutableDisposable<IDisposable>());
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
@@ -774,12 +775,18 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	public showSandboxConfigSuggestionFromPotentialBlocks(cnx: IMcpServerConnection, potentialBlocks: readonly IMcpPotentialSandboxBlock[]): boolean {
-		if (!cnx.definition.sandboxEnabled || !potentialBlocks.length) {
+		if (!cnx.definition.sandboxEnabled || !potentialBlocks.length || this._isSandboxSuggestionDialogVisible) {
 			return false;
 		}
+		if (this._isQuietStart) {
+			throw new UserInteractionRequiredError('sandbox-suggestion');
+		}
 
-		const suggestion = this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, potentialBlocks);
+		const existingSandboxConfig = this._fullDefinitions.get().collection?.sandbox;
+		const suggestion = this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, potentialBlocks, existingSandboxConfig);
 		if (!suggestion) {
+			// clear potential blocks as there are no suggestions for them.
+			this._removePotentialSandboxBlocks(potentialBlocks);
 			return false;
 		}
 
@@ -790,6 +797,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private _confirmAndApplySandboxConfigSuggestion(cnx: IMcpServerConnection, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestion: NonNullable<ReturnType<IMcpSandboxService['getSandboxConfigSuggestionMessage']>>): void {
 		const mcpResource = cnx.definition.presentation?.origin?.uri ?? this.collection.presentation?.origin;
 		const configTarget = this._fullDefinitions.get().collection?.configTarget;
+		this._isSandboxSuggestionDialogVisible = true;
 
 		void this._dialogService.confirm({
 			type: 'warning',
@@ -816,6 +824,8 @@ export class McpServer extends Disposable implements IMcpServer {
 			} catch (e) {
 				this._notificationService.error(localize('mcpSandboxSuggestion.apply.error', "Failed to update sandbox configuration for {0}: {1}", cnx.definition.label, e instanceof Error ? e.message : String(e)));
 			}
+		}).finally(() => {
+			this._isSandboxSuggestionDialogVisible = false;
 		});
 	}
 
@@ -823,6 +833,11 @@ export class McpServer extends Disposable implements IMcpServer {
 		this._potentialSandboxBlocks.push(block);
 		if (this._potentialSandboxBlocks.length > 200) {
 			this._potentialSandboxBlocks.splice(0, this._potentialSandboxBlocks.length - 200);
+		}
+
+		const connection = this._connection.get();
+		if (connection?.state.get().state === McpConnectionState.Kind.Running) {
+			this.showSandboxConfigSuggestionFromPotentialBlocks(connection, this._potentialSandboxBlocks);
 		}
 	}
 

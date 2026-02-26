@@ -22,7 +22,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult } from './mcpManagement.js';
-import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
+import { IMcpSandboxConfiguration, IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
 export interface ILocalMcpServerInfo {
@@ -309,6 +309,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	private initializePromise: Promise<void> | undefined;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 	private local = new Map<string, ILocalMcpServer>();
+	private sandbox: IMcpSandboxConfiguration | undefined;
 
 	protected readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
 	readonly onInstallMcpServer = this._onInstallMcpServer.event;
@@ -342,7 +343,9 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
 				try {
-					this.local = await this.populateLocalServers();
+					const populated = await this.populateLocalServers();
+					this.local = populated.local;
+					this.sandbox = populated.sandbox;
 				} finally {
 					this.startWatching();
 				}
@@ -351,11 +354,13 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		return this.initializePromise;
 	}
 
-	private async populateLocalServers(): Promise<Map<string, ILocalMcpServer>> {
+	private async populateLocalServers(): Promise<{ local: Map<string, ILocalMcpServer>; sandbox: IMcpSandboxConfiguration | undefined }> {
 		this.logService.trace('AbstractMcpResourceManagementService#populateLocalServers', this.mcpResource.toString());
 		const local = new Map<string, ILocalMcpServer>();
+		let sandbox: IMcpSandboxConfiguration | undefined;
 		try {
 			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			sandbox = scannedMcpServers.sandbox;
 			if (scannedMcpServers.servers) {
 				await Promise.allSettled(Object.entries(scannedMcpServers.servers).map(async ([name, scannedServer]) => {
 					const server = await this.scanLocalServer(name, scannedServer);
@@ -366,7 +371,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			this.logService.debug('Could not read user MCP servers:', error);
 			throw error;
 		}
-		return local;
+		return { local, sandbox };
 	}
 
 	private startWatching(): void {
@@ -380,7 +385,9 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 
 	protected async updateLocal(): Promise<void> {
 		try {
-			const current = await this.populateLocalServers();
+			const currentState = await this.populateLocalServers();
+			const current = currentState.local;
+			const sandboxChanged = !equals(this.sandbox, currentState.sandbox);
 
 			const added: ILocalMcpServer[] = [];
 			const updated: ILocalMcpServer[] = [];
@@ -407,6 +414,17 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 				this.local.delete(server);
 				this._onDidUninstallMcpServer.fire({ name: server, mcpResource: this.mcpResource });
 			}
+
+			if (sandboxChanged) {
+				const alreadyChanged = new Set([...added, ...updated].map(server => server.name));
+				for (const server of current.values()) {
+					if (!alreadyChanged.has(server.name)) {
+						updated.push(server);
+					}
+				}
+			}
+
+			this.sandbox = currentState.sandbox;
 
 			if (updated.length) {
 				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));

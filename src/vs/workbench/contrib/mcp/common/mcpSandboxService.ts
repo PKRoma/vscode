@@ -28,7 +28,7 @@ export interface IMcpSandboxService {
 	readonly _serviceBrand: undefined;
 	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, rootSandboxConfig: IMcpSandboxConfiguration | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
 	isEnabled(serverDef: McpServerDefinition, serverLabel?: string): Promise<boolean>;
-	getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[]): SandboxConfigSuggestionResult | undefined;
+	getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined;
 	applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
 }
 
@@ -115,8 +115,8 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return launch;
 	}
 
-	public getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[]): SandboxConfigSuggestionResult | undefined {
-		const suggestions = this._getSandboxConfigSuggestions(potentialBlocks);
+	public getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined {
+		const suggestions = this._getSandboxConfigSuggestions(potentialBlocks, existingSandboxConfig);
 		if (!suggestions) {
 			return undefined;
 		}

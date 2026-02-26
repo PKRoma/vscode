@@ -149,7 +149,9 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	}
 
 	private async writeScannedMcpServers(mcpResource: URI, scannedMcpServers: IScannedMcpServers): Promise<void> {
-		if ((scannedMcpServers.servers && Object.keys(scannedMcpServers.servers).length > 0) || (scannedMcpServers.inputs && scannedMcpServers.inputs.length > 0)) {
+		if ((scannedMcpServers.servers && Object.keys(scannedMcpServers.servers).length > 0)
+			|| (scannedMcpServers.inputs && scannedMcpServers.inputs.length > 0)
+			|| scannedMcpServers.sandbox !== undefined) {
 			await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(scannedMcpServers, null, '\t')));
 		} else {
 			await this.fileService.del(mcpResource);

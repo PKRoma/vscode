@@ -164,7 +164,7 @@ class TestMcpSandboxService implements IMcpSandboxService {
 		return Promise.resolve(this.enabled);
 	}
 
-	getSandboxConfigSuggestionMessage(_serverLabel: string, _potentialBlocks: readonly IMcpPotentialSandboxBlock[]): { message: string; sandboxConfig: IMcpSandboxConfiguration } | undefined {
+	getSandboxConfigSuggestionMessage(_serverLabel: string, _potentialBlocks: readonly IMcpPotentialSandboxBlock[], _existingSandboxConfig?: IMcpSandboxConfiguration): { message: string; sandboxConfig: IMcpSandboxConfiguration } | undefined {
 		return undefined;
 	}
 
