@@ -68,8 +68,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		}));
 
 		// Register URL-based confirmation contributions for open and navigate tools.
-		// This enables shared origin approvals: approving a call to open_browser_page
-		// also auto-approves navigate_page calls to the same origin, and vice versa.
+		// This confirmation will be stored in settings and shared with other tools that
+		// register ChatUrlFetchingConfirmationContribution, such as the `fetch` tool.
 		this._register(confirmationService.registerConfirmationContribution(
 			OpenBrowserToolData.id,
 			instantiationService.createInstance(
