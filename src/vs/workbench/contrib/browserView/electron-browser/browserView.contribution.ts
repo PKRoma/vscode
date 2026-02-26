@@ -118,7 +118,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 	}
 
 	async open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
-		if ((options as OpenExternalOptions | undefined)?.skipIntegratedBrowser) {
+		if ((options as OpenExternalOptions | undefined)?.skipIntegratedBrowserOpener) {
 			return false;
 		}
 

@@ -338,7 +338,7 @@ class OpenInExternalBrowserAction extends Action2 {
 			const url = browserEditor.getUrl();
 			if (url) {
 				const openerService = accessor.get(IOpenerService);
-				await openerService.open(url, { openExternal: true, skipIntegratedBrowser: true });
+				await openerService.open(url, { openExternal: true, skipIntegratedBrowserOpener: true });
 			}
 		}
 	}
