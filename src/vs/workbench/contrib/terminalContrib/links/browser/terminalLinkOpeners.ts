@@ -308,6 +308,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
 			allowContributedOpeners: true,
+			allowIntegratedBrowserOpener: true,
 			openExternal: true
 		});
 	}
@@ -348,6 +349,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
 			allowContributedOpeners: true,
+			allowIntegratedBrowserOpener: true,
 			openExternal: true
 		});
 	}

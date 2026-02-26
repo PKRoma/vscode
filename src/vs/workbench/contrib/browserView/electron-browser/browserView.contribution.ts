@@ -117,7 +117,11 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		this._register(openerService.registerOpener(this));
 	}
 
-	async open(resource: URI | string, _options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+	async open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+		if (!(options as OpenExternalOptions | undefined)?.allowIntegratedBrowserOpener) {
+			return false;
+		}
+
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
 		}

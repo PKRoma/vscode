@@ -91,6 +91,7 @@ export async function openLinkFromMarkdown(openerService: IOpenerService, link: 
 		return await openerService.open(link, {
 			fromUserGesture: true,
 			allowContributedOpeners: true,
+			allowIntegratedBrowserOpener: true,
 			allowCommands: toAllowCommandsOption(isTrusted),
 			skipValidation
 		});
