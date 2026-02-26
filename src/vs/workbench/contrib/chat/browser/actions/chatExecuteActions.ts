@@ -843,7 +843,7 @@ class SendToNewChatAction extends Action2 {
 
 		// Cancel any in-progress request before clearing
 		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
+			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource, 'newSessionAction');
 		}
 
 		if (widget.viewModel?.model) {
@@ -922,7 +922,7 @@ export class CancelAction extends Action2 {
 
 		const chatService = accessor.get(IChatService);
 		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
+			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource, 'cancelAction');
 		} else {
 			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
 				source: 'cancelAction',
