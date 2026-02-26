@@ -812,11 +812,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
-/* Context usage widget container - positioned in the bottom toolbar */
-.interactive-session .chat-input-toolbars .chat-context-usage-container {
+/* Context usage widget container - positioned in the secondary toolbar below input */
+.interactive-session .chat-input-toolbars .chat-context-usage-container,
+.interactive-session .chat-secondary-toolbar .chat-context-usage-container {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	margin-left: auto;
+	order: 1;
+}
+
+/* When context usage is inside the toolbars (compact mode), keep the ordering */
+.interactive-session .chat-input-toolbars .chat-context-usage-container {
 	order: 1;
 }
 
@@ -1317,8 +1324,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-toolbar {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	padding: 4px 6px 0;
+	gap: 6px;
+	padding: 2px 5px 2px 6px;
 }
 
 .interactive-session .chat-secondary-toolbar:empty {
@@ -1677,7 +1684,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 12px;
-	padding: 4px 0 12px 0px;
+	padding: 4px 0 6px 0px;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;

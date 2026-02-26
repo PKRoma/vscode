@@ -1949,12 +1949,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
 							dom.h('.chat-editor-container@editorContainer'),
-							dom.h('.chat-input-toolbars@inputToolbars', [
-								dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
-							]),
+							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
 					]),
-					dom.h('.chat-secondary-toolbar@secondaryToolbar'),
+					dom.h('.chat-secondary-toolbar@secondaryToolbar', [
+						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
+					]),
 					dom.h('.chat-sessionPicker-container@chatSessionPickerContainer'),
 					dom.h('.chat-attachments-container@attachmentsContainer', [
 						dom.h('.chat-attached-context@attachedContextContainer'),
@@ -1976,12 +1976,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-attached-context@attachedContextContainer'),
 						]),
 						dom.h('.chat-editor-container@editorContainer'),
-						dom.h('.chat-input-toolbars@inputToolbars', [
-							dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
-						]),
+						dom.h('.chat-input-toolbars@inputToolbars'),
 					]),
 				]),
-				dom.h('.chat-secondary-toolbar@secondaryToolbar'),
+				dom.h('.chat-secondary-toolbar@secondaryToolbar', [
+					dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
+				]),
 				dom.h('.chat-sessionPicker-container@chatSessionPickerContainer'),
 			]);
 		}
@@ -2159,7 +2159,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			actionContext: { widget },
 			onlyShowIconsForDefaultActions: observableFromEvent(
 				this._inputEditor.onDidLayoutChange,
-				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 400 /* Threshold for showing icon-only mode in primary toolbar pickers */
+				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 300 /* Threshold for showing icon-only mode in primary toolbar pickers */
 			).recomputeInitiallyAndOnChange(this._store),
 			hoverPosition: {
 				forcePosition: true,
