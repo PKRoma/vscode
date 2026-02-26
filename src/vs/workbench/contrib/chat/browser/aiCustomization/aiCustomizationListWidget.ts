@@ -610,11 +610,17 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private updateAddButton(): void {
 		const typeLabel = this.getTypeLabel();
+		const promptType = sectionToPromptType(this.currentSection);
+		const targets = this.workspaceService.getCreationTargets(promptType);
+		const primary = targets[0];
+
 		this.addButton.primaryButton.setTitle('');
 		this.addButton.dropdownButton.setTitle('');
 		this.addButton.enabled = true;
-		if (this.workspaceService.preferManualCreation) {
-			// Sessions: primary is workspace creation
+
+		if (primary === 'generate') {
+			this.addButton.label = `$(${Codicon.sparkle.id}) Generate ${typeLabel}`;
+		} else {
 			const hasWorkspace = this.hasActiveWorkspace();
 			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
 			this.addButton.enabled = hasWorkspace;
@@ -623,9 +629,6 @@ export class AICustomizationListWidget extends Disposable {
 				this.addButton.primaryButton.setTitle(disabledTitle);
 				this.addButton.dropdownButton.setTitle(disabledTitle);
 			}
-		} else {
-			// Core: primary is AI generation
-			this.addButton.label = `$(${Codicon.sparkle.id}) Generate ${typeLabel}`;
 		}
 	}
 
@@ -637,37 +640,31 @@ export class AICustomizationListWidget extends Disposable {
 		const typeLabel = this.getTypeLabel();
 		const actions: Action[] = [];
 		const promptType = sectionToPromptType(this.currentSection);
+		const targets = this.workspaceService.getCreationTargets(promptType);
+		const dropdownTargets = targets.slice(1); // skip primary
 
-		// Hooks: no user-scoped creation
-		if (promptType === PromptsType.hook) {
-			if (this.workspaceService.preferManualCreation) {
-				// Sessions: no dropdown for hooks
-			} else {
-				// Core: primary is generate, dropdown has configure quick pick
+		for (const target of dropdownTargets) {
+			if (target === 'generate') {
+				actions.push(this.dropdownActionDisposables.add(new Action('generate', `$(${Codicon.sparkle.id}) Generate ${typeLabel}`, undefined, true, () => {
+					this._onDidRequestCreate.fire(promptType);
+				})));
+			} else if (target === 'workspace') {
 				if (this.hasActiveWorkspace()) {
-					actions.push(this.dropdownActionDisposables.add(new Action('configureHooks', `$(${Codicon.add.id}) Configure Hooks`, undefined, true, () => {
-						this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
-					})));
+					if (promptType === PromptsType.hook) {
+						actions.push(this.dropdownActionDisposables.add(new Action('configureHooks', `$(${Codicon.add.id}) Configure Hooks`, undefined, true, () => {
+							this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
+						})));
+					} else {
+						actions.push(this.dropdownActionDisposables.add(new Action('createWorkspace', `$(${Codicon.folder.id}) New ${typeLabel} (Workspace)`, undefined, true, () => {
+							this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
+						})));
+					}
 				}
-			}
-			return actions;
-		}
-
-		if (this.workspaceService.preferManualCreation) {
-			// Sessions: primary is workspace, dropdown has user
-			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-			})));
-		} else {
-			// Core: primary is generate, dropdown has workspace + user
-			if (this.hasActiveWorkspace()) {
-				actions.push(this.dropdownActionDisposables.add(new Action('createWorkspace', `$(${Codicon.folder.id}) New ${typeLabel} (Workspace)`, undefined, true, () => {
-					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
+			} else if (target === 'user') {
+				actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
+					this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
 				})));
 			}
-			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-			})));
 		}
 
 		return actions;
@@ -685,15 +682,18 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private executePrimaryCreateAction(): void {
 		const promptType = sectionToPromptType(this.currentSection);
-		if (this.workspaceService.preferManualCreation) {
-			// Sessions: primary creates in workspace
+		const targets = this.workspaceService.getCreationTargets(promptType);
+		const primary = targets[0];
+
+		if (primary === 'generate') {
+			this._onDidRequestCreate.fire(promptType);
+		} else if (primary === 'workspace') {
 			if (!this.hasActiveWorkspace()) {
 				return;
 			}
 			this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
-		} else {
-			// Core: primary is generate
-			this._onDidRequestCreate.fire(promptType);
+		} else if (primary === 'user') {
+			this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
 		}
 	}
 
@@ -725,19 +725,26 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Loads items for the current section.
+	 * Preloads item counts for all given section types.
+	 * This populates the workspace service's count cache so
+	 * toolbar badges and overview counts are immediately correct.
 	 */
-	private async loadItems(): Promise<void> {
-		const promptType = sectionToPromptType(this.currentSection);
+	async preloadAllCounts(sections: readonly AICustomizationManagementSection[]): Promise<void> {
+		await Promise.all(sections.map(async section => {
+			const type = sectionToPromptType(section);
+			const items = await this.loadItemsForType(type);
+			this.workspaceService.setItemCounts(type, items);
+		}));
+	}
+
+	/**
+	 * Loads items for a given prompt type, applying exclusion filters and sorting.
+	 * Can be used standalone for count preloading without touching UI state.
+	 */
+	async loadItemsForType(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const items: IAICustomizationListItem[] = [];
 
-		const folders = this.workspaceContextService.getWorkspace().folders;
-		const activeRepo = this.workspaceService.getActiveProjectRoot();
-		this.logService.info(`[AICustomizationListWidget] loadItems: section=${this.currentSection}, promptType=${promptType}, workspaceFolders=[${folders.map(f => f.uri.toString()).join(', ')}], activeRepo=${activeRepo?.toString() ?? 'none'}`);
-
-
 		if (promptType === PromptsType.agent) {
-			// Use getCustomAgents which has parsed name/description from frontmatter
 			const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
 			for (const agent of agents) {
 				const filename = basename(agent.uri);
@@ -752,7 +759,6 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.skill) {
-			// Use findAgentSkills which has parsed name/description from frontmatter
 			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
 			for (const skill of skills || []) {
 				const filename = basename(skill.uri);
@@ -768,8 +774,6 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.prompt) {
-			// Use getPromptSlashCommands which has parsed name/description from frontmatter
-			// Filter out skills since they have their own section
 			const commands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
 			for (const command of commands) {
 				if (command.promptPath.type === PromptsType.skill) {
@@ -787,7 +791,6 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.hook) {
-			// Parse hook files and display individual hooks
 			const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
 			const workspaceRootUri = workspaceFolder?.uri;
 			const userHomeUri = await this.pathService.userHome();
@@ -806,7 +809,6 @@ export class AICustomizationListWidget extends Disposable {
 			);
 
 			for (const hook of parsedHooks) {
-				// Determine storage from the file path
 				const storage = hook.filePath.startsWith('~') ? PromptsStorage.user : PromptsStorage.local;
 
 				items.push({
@@ -820,11 +822,9 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else {
-			// For instructions, fetch prompt files and group by storage
 			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
 			const allItems: IPromptPath[] = [...promptFiles];
 
-			// Also include agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md)
 			if (promptType === PromptsType.instructions) {
 				const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
 				const workspaceFolderUris = this.workspaceContextService.getWorkspace().folders.map(f => f.uri);
@@ -850,7 +850,6 @@ export class AICustomizationListWidget extends Disposable {
 
 			const mapToListItem = (item: IPromptPath): IAICustomizationListItem => {
 				const filename = basename(item.uri);
-				// For instructions, derive a friendly name from filename
 				const friendlyName = item.name || this.getFriendlyName(filename);
 				return {
 					id: item.uri.toString(),
@@ -882,6 +881,21 @@ export class AICustomizationListWidget extends Disposable {
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
+		return items;
+	}
+
+	/**
+	 * Loads items for the current section and updates the UI.
+	 */
+	private async loadItems(): Promise<void> {
+		const promptType = sectionToPromptType(this.currentSection);
+
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		const activeRepo = this.workspaceService.getActiveProjectRoot();
+		this.logService.info(`[AICustomizationListWidget] loadItems: section=${this.currentSection}, promptType=${promptType}, workspaceFolders=[${folders.map(f => f.uri.toString()).join(', ')}], activeRepo=${activeRepo?.toString() ?? 'none'}`);
+
+		const items = await this.loadItemsForType(promptType);
+
 		// Set git status for workspace (local) items
 		this.updateGitStatus(items);
 
@@ -889,6 +903,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.allItems = items;
 		this.filterItems();
+		this.workspaceService.setItemCounts(promptType, items);
 		this._onDidChangeItemCount.fire(items.length);
 	}
 

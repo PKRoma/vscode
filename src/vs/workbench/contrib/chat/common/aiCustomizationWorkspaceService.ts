@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../base/common/observable.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
+
+/**
+ * Allowed creation targets for customization files.
+ */
+export type CustomizationCreationTarget = 'workspace' | 'user' | 'generate';
 
 /**
  * Possible section IDs for the AI Customization Management Editor sidebar.
@@ -59,9 +65,27 @@ export interface IAICustomizationWorkspaceService {
 	readonly excludedUserFileRoots: readonly URI[];
 
 	/**
-	 * Whether the primary creation action should create a file directly
+	 * Returns the allowed creation targets for a given customization type.
+	 * The first item is the primary button action; remaining items appear in the dropdown.
 	 */
-	readonly preferManualCreation: boolean;
+	getCreationTargets(type: PromptsType): readonly CustomizationCreationTarget[];
+
+	/**
+	 * Returns the item count for a given customization type and storage.
+	 * Counts are populated by the list widget after loading items.
+	 */
+	getItemCount(type: PromptsType, storage?: PromptsStorage): number;
+
+	/**
+	 * Updates the cached item counts for a customization type.
+	 * Called by the list widget after loading items.
+	 */
+	setItemCounts(type: PromptsType, items: readonly { storage: PromptsStorage }[]): void;
+
+	/**
+	 * Event fired when item counts change.
+	 */
+	readonly onDidChangeItemCounts: Event<void>;
 
 	/**
 	 * Commits files in the active project.

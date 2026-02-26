@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { derived, IObservable, observableFromEventOpts } from '../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, CustomizationCreationTarget } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -60,9 +61,36 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		PromptsStorage.plugin,
 	];
 
-	readonly preferManualCreation = false;
+	getCreationTargets(type: PromptsType): readonly CustomizationCreationTarget[] {
+		if (type === PromptsType.hook) {
+			return ['generate', 'workspace'];
+		}
+		return ['generate', 'workspace', 'user'];
+	}
 
 	readonly excludedUserFileRoots: readonly URI[] = [];
+
+	private readonly _itemCounts = new Map<string, number>();
+	private readonly _onDidChangeItemCounts = new Emitter<void>();
+	readonly onDidChangeItemCounts: Event<void> = this._onDidChangeItemCounts.event;
+
+	getItemCount(type: PromptsType, storage?: PromptsStorage): number {
+		const key = storage ? `${type}:${storage}` : type;
+		return this._itemCounts.get(key) ?? 0;
+	}
+
+	setItemCounts(type: PromptsType, items: readonly { storage: PromptsStorage }[]): void {
+		// Count total and per-storage
+		const byStorage = new Map<PromptsStorage, number>();
+		for (const item of items) {
+			byStorage.set(item.storage, (byStorage.get(item.storage) ?? 0) + 1);
+		}
+		this._itemCounts.set(type, items.length);
+		for (const s of Object.values(PromptsStorage)) {
+			this._itemCounts.set(`${type}:${s}`, byStorage.get(s) ?? 0);
+		}
+		this._onDidChangeItemCounts.fire();
+	}
 
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.

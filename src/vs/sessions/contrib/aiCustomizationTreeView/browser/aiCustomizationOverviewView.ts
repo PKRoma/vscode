@@ -5,7 +5,6 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -88,6 +87,7 @@ export class AICustomizationOverviewView extends ViewPane {
 			this.workspaceService.activeProjectRoot.read(reader);
 			this.loadCounts();
 		}));
+		this._register(this.workspaceService.onDidChangeItemCounts(() => this.loadCounts()));
 
 	}
 
@@ -147,7 +147,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		}
 	}
 
-	private async loadCounts(): Promise<void> {
+	private loadCounts(): void {
 		const sectionPromptTypes: Array<{ section: AICustomizationManagementSection; type: PromptsType }> = [
 			{ section: AICustomizationManagementSection.Agents, type: PromptsType.agent },
 			{ section: AICustomizationManagementSection.Skills, type: PromptsType.skill },
@@ -155,23 +155,12 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ section: AICustomizationManagementSection.Prompts, type: PromptsType.prompt },
 		];
 
-		await Promise.all(sectionPromptTypes.map(async ({ section, type }) => {
-			let count = 0;
-			if (type === PromptsType.skill) {
-				const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
-				if (skills) {
-					count = skills.length;
-				}
-			} else {
-				const allItems = await this.promptsService.listPromptFiles(type, CancellationToken.None);
-				count = allItems.length;
-			}
-
+		for (const { section, type } of sectionPromptTypes) {
 			const sectionData = this.sections.find(s => s.id === section);
 			if (sectionData) {
-				sectionData.count = count;
+				sectionData.count = this.workspaceService.getItemCount(type);
 			}
-		}));
+		}
 
 		this.updateCountElements();
 	}

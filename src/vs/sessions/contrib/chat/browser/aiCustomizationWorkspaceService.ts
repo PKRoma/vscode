@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { derived, IObservable } from '../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, CustomizationCreationTarget } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,6 +25,27 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 
 	readonly excludedUserFileRoots: readonly URI[];
+
+	private readonly _itemCounts = new Map<string, number>();
+	private readonly _onDidChangeItemCounts = new Emitter<void>();
+	readonly onDidChangeItemCounts: Event<void> = this._onDidChangeItemCounts.event;
+
+	getItemCount(type: PromptsType, storage?: PromptsStorage): number {
+		const key = storage ? `${type}:${storage}` : type;
+		return this._itemCounts.get(key) ?? 0;
+	}
+
+	setItemCounts(type: PromptsType, items: readonly { storage: PromptsStorage }[]): void {
+		const byStorage = new Map<PromptsStorage, number>();
+		for (const item of items) {
+			byStorage.set(item.storage, (byStorage.get(item.storage) ?? 0) + 1);
+		}
+		this._itemCounts.set(type, items.length);
+		for (const s of Object.values(PromptsStorage)) {
+			this._itemCounts.set(`${type}:${s}`, byStorage.get(s) ?? 0);
+		}
+		this._onDidChangeItemCounts.fire();
+	}
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
@@ -57,7 +79,18 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		PromptsStorage.user,
 	];
 
-	readonly preferManualCreation = true;
+	getCreationTargets(type: PromptsType): readonly CustomizationCreationTarget[] {
+		switch (type) {
+			case PromptsType.instructions:
+			case PromptsType.skill:
+				return ['workspace', 'user'];
+			case PromptsType.prompt:
+			case PromptsType.agent:
+			case PromptsType.hook:
+			default:
+				return ['workspace'];
+		}
+	}
 
 	async commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.getActiveSession();

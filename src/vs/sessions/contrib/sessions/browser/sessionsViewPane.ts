@@ -28,7 +28,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
@@ -40,11 +39,10 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../browser/menus.js';
-import { getCustomizationTotalCount } from './customizationCounts.js';
+import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
@@ -73,9 +71,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 		@IMcpService private readonly mcpService: IMcpService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
@@ -230,21 +226,21 @@ export class AgenticSessionsViewPane extends ViewPane {
 			telemetrySource: 'sidebarCustomizations',
 		}));
 
-		let updateCountRequestId = 0;
-		const updateHeaderTotalCount = async () => {
-			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService);
-			if (requestId !== updateCountRequestId) {
-				return;
+		const updateHeaderTotalCount = () => {
+			const promptTypes = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt, PromptsType.hook];
+			let totalCount = 0;
+			for (const type of promptTypes) {
+				for (const storage of this.workspaceService.visibleStorageSources) {
+					totalCount += this.workspaceService.getItemCount(type, storage);
+				}
 			}
+			totalCount += this.mcpService.servers.get().length;
 
 			headerTotalCount.classList.toggle('hidden', totalCount === 0);
 			headerTotalCount.textContent = `${totalCount}`;
 		};
 
-		this._register(this.promptsService.onDidChangeCustomAgents(() => updateHeaderTotalCount()));
-		this._register(this.promptsService.onDidChangeSlashCommands(() => updateHeaderTotalCount()));
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => updateHeaderTotalCount()));
+		this._register(this.workspaceService.onDidChangeItemCounts(() => updateHeaderTotalCount()));
 		this._register(autorun(reader => {
 			this.mcpService.servers.read(reader);
 			updateHeaderTotalCount();
