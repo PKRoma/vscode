@@ -730,11 +730,15 @@ export class AICustomizationListWidget extends Disposable {
 	 * toolbar badges and overview counts are immediately correct.
 	 */
 	async preloadAllCounts(sections: readonly AICustomizationManagementSection[]): Promise<void> {
-		await Promise.all(sections.map(async section => {
+		const results = await Promise.all(sections.map(async section => {
 			const type = sectionToPromptType(section);
 			const items = await this.loadItemsForType(type);
-			this.workspaceService.setItemCounts(type, items);
+			return { type, items };
 		}));
+
+		for (const { type, items } of results) {
+			this.workspaceService.setItemCounts(type, items);
+		}
 	}
 
 	/**
