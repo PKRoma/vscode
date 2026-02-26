@@ -294,6 +294,11 @@ const TIP_CATALOG: ITipDefinition[] = [
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
 	},
 	{
+		id: 'tip.forkConversation',
+		message: localize('tip.forkConversation', "Tip: Type /fork to branch the conversation. Explore a different approach without losing the original context."),
+		excludeWhenCommandsExecuted: ['workbench.action.chat.forkConversation'],
+	},
+	{
 		id: 'tip.yoloMode',
 		message: localize('tip.yoloMode', "Tip: Enable [auto approve](command:workbench.action.openSettings?%5B%22chat.tools.global.autoApprove%22%5D) to give the agent full control without manual confirmation."),
 		when: ContextKeyExpr.and(
