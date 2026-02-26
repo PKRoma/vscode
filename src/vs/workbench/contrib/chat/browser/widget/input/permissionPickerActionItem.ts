@@ -41,12 +41,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					{
 						...action,
 						id: 'chat.permissions.default',
-						label: localize('permissions.default', "Default Permissions"),
+						label: localize('permissions.default', "Default Approvals"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
 						checked: currentLevel === ChatPermissionLevel.Default,
 						tooltip: '',
 						hover: {
-							content: localize('permissions.default.description', "Use configured auto-approve settings"),
+							content: localize('permissions.default.description', "Use configured approval settings"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
@@ -59,12 +59,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					{
 						...action,
 						id: 'chat.permissions.autopilot',
-						label: localize('permissions.autoApproveAll', "Auto-Approve All"),
+						label: localize('permissions.autoApproveAll', "Auto Approvals"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						tooltip: '',
 						hover: {
-							content: localize('permissions.autoApproveAll.description', "Auto-approve all tool calls"),
+							content: localize('permissions.autoApproveAll.description', "Automatically approve all tool calls"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
@@ -94,8 +94,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		const label = isFullAccess
-			? localize('permissions.autoApproveAll.label', "Auto-Approve All")
-			: localize('permissions.default.label', "Default Permissions");
+			? localize('permissions.autoApproveAll.label', "Auto Approvals")
+			: localize('permissions.default.label', "Default Approvals");
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
