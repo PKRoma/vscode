@@ -364,7 +364,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
-	private chatSessionPickerContainer: HTMLElement | undefined;
+	private chatSessionPickerContainer!: HTMLElement;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>> = new Map();
@@ -1721,9 +1721,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		if (this.chatSessionPickerContainer) {
-			this.chatSessionPickerContainer.style.display = '';
-		}
+		this.chatSessionPickerContainer.style.display = '';
 
 		// Fire option change events for existing widgets to sync their state
 		// (only if we have a session context - in welcome view, options aren't persisted yet)
@@ -1750,9 +1748,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private hideAllSessionPickerWidgets(): void {
-		if (this.chatSessionPickerContainer) {
-			this.chatSessionPickerContainer.style.display = 'none';
-		}
+		this.chatSessionPickerContainer.style.display = 'none';
 	}
 
 	private disposeSessionPickerWidgets(): void {
@@ -1959,6 +1955,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						]),
 					]),
 					dom.h('.chat-secondary-toolbar@secondaryToolbar'),
+					dom.h('.chat-sessionPicker-container@chatSessionPickerContainer'),
 					dom.h('.chat-attachments-container@attachmentsContainer', [
 						dom.h('.chat-attached-context@attachedContextContainer'),
 					]),
@@ -1985,6 +1982,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					]),
 				]),
 				dom.h('.chat-secondary-toolbar@secondaryToolbar'),
+				dom.h('.chat-sessionPicker-container@chatSessionPickerContainer'),
 			]);
 		}
 		this.container = elements.root;
@@ -2006,6 +2004,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
+		this.chatSessionPickerContainer = elements.chatSessionPickerContainer;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatGettingStartedTipContainer = elements.chatGettingStartedTipContainer;
@@ -2160,7 +2159,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			actionContext: { widget },
 			onlyShowIconsForDefaultActions: observableFromEvent(
 				this._inputEditor.onDidLayoutChange,
-				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 450 /* Threshold for showing icon-only mode in primary toolbar pickers */
+				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 400 /* Threshold for showing icon-only mode in primary toolbar pickers */
 			).recomputeInitiallyAndOnChange(this._store),
 			hoverPosition: {
 				forcePosition: true,
@@ -2314,13 +2313,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
 		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
-		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
-			// Update container reference for the pickers
-			const toolbarElement = this.secondaryToolbar.getElement();
-			// eslint-disable-next-line no-restricted-syntax
-			const container = toolbarElement.querySelector('.chat-sessionPicker-container');
-			this.chatSessionPickerContainer = container as HTMLElement | undefined;
-		}));
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
