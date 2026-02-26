@@ -158,6 +158,11 @@ export interface IChatAgentRequest {
 	 */
 	hasHooksEnabled?: boolean;
 	/**
+	 * The permission level for tool auto-approval in this request.
+	 * When set to 'autopilot', all tool calls and confirmations should be auto-approved.
+	 */
+	permissionLevel?: string;
+	/**
 	 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 	 */
 	subAgentInvocationId?: string;
