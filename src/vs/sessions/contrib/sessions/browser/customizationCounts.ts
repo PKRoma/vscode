@@ -91,3 +91,32 @@ export async function getCustomizationTotalCount(promptsService: IPromptsService
 		+ getSourceCountsTotal(hookCounts, workspaceService)
 		+ mcpService.servers.get().length;
 }
+
+function sourceCountsToItems(counts: ISourceCounts): readonly { storage: PromptsStorage }[] {
+	const items: { storage: PromptsStorage }[] = [];
+	for (let i = 0; i < counts.workspace; i++) { items.push({ storage: PromptsStorage.local }); }
+	for (let i = 0; i < counts.user; i++) { items.push({ storage: PromptsStorage.user }); }
+	for (let i = 0; i < counts.extension; i++) { items.push({ storage: PromptsStorage.extension }); }
+	return items;
+}
+
+/**
+ * Preloads item counts for all customization types into the workspace service cache.
+ * Call this early (e.g., on view pane render) so badges/totals are immediately correct.
+ */
+export async function preloadAllCounts(promptsService: IPromptsService, workspaceService: IAICustomizationWorkspaceService): Promise<void> {
+	const excluded = workspaceService.excludedUserFileRoots;
+	const [agentCounts, skillCounts, instructionCounts, promptCounts, hookCounts] = await Promise.all([
+		getPromptSourceCounts(promptsService, PromptsType.agent, excluded),
+		getSkillSourceCounts(promptsService, excluded),
+		getPromptSourceCounts(promptsService, PromptsType.instructions, excluded),
+		getPromptSourceCounts(promptsService, PromptsType.prompt, excluded),
+		getPromptSourceCounts(promptsService, PromptsType.hook, excluded),
+	]);
+
+	workspaceService.setItemCounts(PromptsType.agent, sourceCountsToItems(agentCounts));
+	workspaceService.setItemCounts(PromptsType.skill, sourceCountsToItems(skillCounts));
+	workspaceService.setItemCounts(PromptsType.instructions, sourceCountsToItems(instructionCounts));
+	workspaceService.setItemCounts(PromptsType.prompt, sourceCountsToItems(promptCounts));
+	workspaceService.setItemCounts(PromptsType.hook, sourceCountsToItems(hookCounts));
+}
