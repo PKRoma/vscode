@@ -118,7 +118,8 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 	}
 
 	async open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
-		if (!(options as OpenExternalOptions | undefined)?.allowContributedOpeners) {
+		// Normally allowContributedOpeners would default to false, but here we default it to true.
+		if ((options as OpenExternalOptions | undefined)?.allowContributedOpeners === false) {
 			return false;
 		}
 
