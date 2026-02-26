@@ -88,6 +88,13 @@ export interface IAICustomizationWorkspaceService {
 	readonly onDidChangeItemCounts: Event<void>;
 
 	/**
+	 * Triggers a debounced refresh of all item counts.
+	 * Deduplicates in-flight requests so multiple callers
+	 * don't cause redundant parallel scans.
+	 */
+	refreshCounts(): void;
+
+	/**
 	 * Commits files in the active project.
 	 */
 	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;

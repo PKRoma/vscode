@@ -421,9 +421,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			void this.listWidget.setSection(this.selectedSection);
 		}
 
-		// Preload counts for all prompts sections so badges/overview are immediately correct
-		const promptsSections = this.sections.filter(s => this.isPromptsSection(s.id)).map(s => s.id);
-		void this.listWidget.preloadAllCounts(promptsSections);
+		// Trigger a count refresh so badges/overview are up-to-date
+		this.workspaceService.refreshCounts();
 	}
 
 	private isPromptsSection(section: AICustomizationManagementSection): boolean {
@@ -561,9 +560,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.layout(this.dimension);
 		}
 
-		// Reload counts for all sections each time the editor is focused/opened
-		const promptsSections = this.sections.filter(s => this.isPromptsSection(s.id)).map(s => s.id);
-		void this.listWidget.preloadAllCounts(promptsSections);
+		// Refresh counts each time the editor is focused/opened
+		this.workspaceService.refreshCounts();
 	}
 
 	override clearInput(): void {

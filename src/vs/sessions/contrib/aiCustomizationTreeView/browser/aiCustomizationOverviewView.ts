@@ -5,7 +5,6 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -18,13 +17,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 
@@ -63,8 +60,6 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IPromptsService private readonly promptsService: IPromptsService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -77,16 +72,8 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Prompts, label: localize('prompts', "Prompts"), icon: promptIcon, count: 0 },
 		);
 
-		// Listen to changes
-		this._register(this.promptsService.onDidChangeCustomAgents(() => this.loadCounts()));
-		this._register(this.promptsService.onDidChangeSlashCommands(() => this.loadCounts()));
-
-		// Listen to workspace folder changes to update counts
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.loadCounts()));
-		this._register(autorun(reader => {
-			this.workspaceService.activeProjectRoot.read(reader);
-			this.loadCounts();
-		}));
+		// Listen to count cache changes only — the workspace service
+		// refreshes the cache in response to prompt/session events.
 		this._register(this.workspaceService.onDidChangeItemCounts(() => this.loadCounts()));
 
 	}

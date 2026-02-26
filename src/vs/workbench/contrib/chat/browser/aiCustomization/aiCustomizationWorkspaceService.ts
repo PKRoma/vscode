@@ -92,6 +92,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		this._onDidChangeItemCounts.fire();
 	}
 
+	refreshCounts(): void {
+		// No-op in core VS Code — counts are populated by the management editor's list widget.
+	}
+
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.
 	}

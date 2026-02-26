@@ -15,18 +15,13 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -93,11 +88,6 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions,
 		private readonly _config: ICustomizationItemConfig,
-		@IPromptsService private readonly _promptsService: IPromptsService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IMcpService private readonly _mcpService: IMcpService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
 		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
@@ -134,19 +124,8 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		// Count container (inside button, floating right)
 		this._countContainer = append(this._button.element, $('span.customization-link-counts'));
 
-		// Subscribe to changes
-		this._viewItemDisposables.add(this._promptsService.onDidChangeCustomAgents(() => this._updateCounts()));
-		this._viewItemDisposables.add(this._promptsService.onDidChangeSlashCommands(() => this._updateCounts()));
-		this._viewItemDisposables.add(this._languageModelsService.onDidChangeLanguageModels(() => this._updateCounts()));
-		this._viewItemDisposables.add(autorun(reader => {
-			this._mcpService.servers.read(reader);
-			this._updateCounts();
-		}));
-		this._viewItemDisposables.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateCounts()));
-		this._viewItemDisposables.add(autorun(reader => {
-			this._activeSessionService.activeSession.read(reader);
-			this._updateCounts();
-		}));
+		// Subscribe to count cache changes only — the workspace service
+		// refreshes the cache in response to prompt/session events.
 		this._viewItemDisposables.add(this._workspaceService.onDidChangeItemCounts(() => this._updateCounts()));
 
 		// Initial count

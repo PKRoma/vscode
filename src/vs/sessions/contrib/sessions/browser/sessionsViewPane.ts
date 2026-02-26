@@ -43,8 +43,6 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../browser/menus.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { preloadAllCounts } from './customizationCounts.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
@@ -73,7 +71,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
@@ -89,13 +86,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.viewPaneContainer.classList.add('agent-sessions-viewpane');
 
 		this.createControls(parent);
-
-		// Preload customization counts so badges are correct before the editor is opened,
-		// and refresh whenever the active session (project root) changes.
-		this._register(autorun(reader => {
-			this.workspaceService.activeProjectRoot.read(reader);
-			void preloadAllCounts(this.promptsService, this.workspaceService);
-		}));
 	}
 
 	protected override getLocationBasedColors(): IViewPaneLocationColors {
