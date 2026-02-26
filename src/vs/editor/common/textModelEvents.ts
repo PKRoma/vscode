@@ -398,7 +398,7 @@ export class ModelRawLinesDeleted {
 	 */
 	public readonly toLineNumber: number;
 	/**
-	 * The post-edit line number corresponding to the splice point (the line at which the deletion starts in the post-edit model).
+	 * The last unmodified line in the updated buffer after the deletion is made.
 	 */
 	public readonly lastUntouchedLinePostEdit: number;
 
