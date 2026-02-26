@@ -35,7 +35,7 @@ import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistry
 import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
-import { LazyCollectionState, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
+import { IMcpPotentialSandboxBlock, LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 
 class TestConfigurationResolverService {
@@ -144,11 +144,11 @@ class TestMcpSandboxService implements IMcpSandboxService {
 	declare readonly _serviceBrand: undefined;
 	public callCount = 0;
 	public enabled = false;
-	public lastLaunchCallArgs: { serverDef: McpServerDefinition; launch: McpServerLaunch; remoteAuthority: string | undefined; configTarget: ConfigurationTarget } | undefined;
+	public lastLaunchCallArgs: { serverDef: McpServerDefinition; launch: McpServerLaunch; rootSandboxConfig: IMcpSandboxConfiguration | undefined; remoteAuthority: string | undefined; configTarget: ConfigurationTarget } | undefined;
 
-	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
+	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, rootSandboxConfig: IMcpSandboxConfiguration | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
 		this.callCount++;
-		this.lastLaunchCallArgs = { serverDef, launch, remoteAuthority, configTarget };
+		this.lastLaunchCallArgs = { serverDef, launch, rootSandboxConfig, remoteAuthority, configTarget };
 
 		if (this.enabled && launch.type === McpServerTransportType.Stdio) {
 			return Promise.resolve({
@@ -164,11 +164,11 @@ class TestMcpSandboxService implements IMcpSandboxService {
 		return Promise.resolve(this.enabled);
 	}
 
-	getSandboxConfigSuggestionMessage(_serverLabel: string, _error: McpConnectionState.Error): { message: string; sandboxConfig: IMcpSandboxConfiguration } | undefined {
+	getSandboxConfigSuggestionMessage(_serverLabel: string, _potentialBlocks: readonly IMcpPotentialSandboxBlock[]): { message: string; sandboxConfig: IMcpSandboxConfiguration } | undefined {
 		return undefined;
 	}
 
-	applySandboxConfigSuggestion(_serverName: string, _mcpResource: URI, _configTarget: ConfigurationTarget, _error: McpConnectionState.Error, _suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
+	applySandboxConfigSuggestion(_serverName: string, _mcpResource: URI, _configTarget: ConfigurationTarget, _potentialBlocks: readonly IMcpPotentialSandboxBlock[], _suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 }
@@ -381,11 +381,17 @@ suite('Workbench - MCP - Registry', () => {
 
 	test('resolveConnection calls launchInSandboxIfEnabled with expected arguments when sandboxing is enabled', async () => {
 		testMcpSandboxService.enabled = true;
+		const sandboxConfig: IMcpSandboxConfiguration = {
+			network: {
+				allowedDomains: ['example.com'],
+			}
+		};
 
 		const sandboxCollection: McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } = {
 			...testCollection,
 			id: 'sandbox-collection',
 			remoteAuthority: 'ssh-remote+test',
+			sandbox: sandboxConfig,
 		};
 
 		const definition: McpServerDefinition = {
@@ -418,6 +424,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual(testMcpSandboxService.callCount, 1);
 		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.serverDef, definition);
 		assert.deepStrictEqual(testMcpSandboxService.lastLaunchCallArgs?.launch, definition.launch);
+		assert.deepStrictEqual(testMcpSandboxService.lastLaunchCallArgs?.rootSandboxConfig, sandboxConfig);
 		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.remoteAuthority, 'ssh-remote+test');
 		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.configTarget, ConfigurationTarget.USER);
 		assert.strictEqual((connection.launchDefinition as McpServerTransportStdio).command, 'sandboxed-command');

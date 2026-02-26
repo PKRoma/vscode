@@ -512,7 +512,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
 			}
 			// If sandbox is enabled for this server, attempt to launch in sandbox
-			launch = await this._mcpSandboxService.launchInSandboxIfEnabled(definition, launch, collection.remoteAuthority ?? undefined, collection.configTarget);
+			launch = await this._mcpSandboxService.launchInSandboxIfEnabled(definition, launch, collection.sandbox, collection.remoteAuthority ?? undefined, collection.configTarget);
 		} catch (e) {
 			if (e instanceof UserInteractionRequiredError) {
 				throw e;

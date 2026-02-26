@@ -13,6 +13,8 @@ import { Location } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMcpSandboxConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpResourceScannerService, McpResourceTarget } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
@@ -26,6 +28,12 @@ interface CollectionState extends IDisposable {
 	serverDefinitions: ISettableObservable<readonly McpServerDefinition[]>;
 }
 
+interface IResolvedMcpConfigInfo {
+	mcpConfigPath: IMcpConfigPath | undefined;
+	locations: Map<string, Location>;
+	sandbox: IMcpSandboxConfiguration | undefined;
+}
+
 export class InstalledMcpServersDiscovery extends Disposable implements IMcpDiscovery {
 
 	readonly fromGallery = true;
@@ -34,6 +42,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
+		@IMcpResourceScannerService private readonly mcpResourceScannerService: IMcpResourceScannerService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -62,27 +71,33 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 	private async sync(): Promise<void> {
 		try {
-			const collections = new Map<string, [IMcpConfigPath | undefined, McpServerDefinition[]]>();
-			const mcpConfigPathInfos = new ResourceMap<Promise<IMcpConfigPath & { locations: Map<string, Location> } | undefined>>();
+			const collections = new Map<string, { mcpConfigPath: IMcpConfigPath | undefined; sandbox: IMcpSandboxConfiguration | undefined; serverDefinitions: McpServerDefinition[] }>();
+			const mcpConfigInfos = new ResourceMap<Promise<IResolvedMcpConfigInfo>>();
 			for (const server of this.mcpWorkbenchService.getEnabledLocalMcpServers()) {
-				let mcpConfigPathPromise = mcpConfigPathInfos.get(server.mcpResource);
-				if (!mcpConfigPathPromise) {
-					mcpConfigPathPromise = (async (local: IWorkbenchLocalMcpServer) => {
+				let mcpConfigInfoPromise = mcpConfigInfos.get(server.mcpResource);
+				if (!mcpConfigInfoPromise) {
+					mcpConfigInfoPromise = (async (local: IWorkbenchLocalMcpServer): Promise<IResolvedMcpConfigInfo> => {
 						const mcpConfigPath = this.mcpWorkbenchService.getMcpConfigPath(local);
 						const locations = mcpConfigPath?.uri ? await this.getServerIdMapping(mcpConfigPath?.uri, mcpConfigPath.section ? [...mcpConfigPath.section, 'servers'] : ['servers']) : new Map();
-						return mcpConfigPath ? { ...mcpConfigPath, locations } : undefined;
+						const scanTarget = mcpConfigPath ? this._toMcpResourceTarget(mcpConfigPath.target) : undefined;
+						const scanned = scanTarget !== undefined ? await this.mcpResourceScannerService.scanMcpServers(local.mcpResource, scanTarget) : undefined;
+						return { mcpConfigPath, locations, sandbox: scanned?.sandbox };
 					})(server);
-					mcpConfigPathInfos.set(server.mcpResource, mcpConfigPathPromise);
+					mcpConfigInfos.set(server.mcpResource, mcpConfigInfoPromise);
 				}
 
 				const config = server.config;
-				const mcpConfigPath = await mcpConfigPathPromise;
-				const collectionId = `mcp.config.${mcpConfigPath ? mcpConfigPath.id : 'unknown'}`;
+				const mcpConfigInfo = await mcpConfigInfoPromise;
+				const collectionId = `mcp.config.${mcpConfigInfo.mcpConfigPath ? mcpConfigInfo.mcpConfigPath.id : 'unknown'}`;
 
-				let definitions = collections.get(collectionId);
-				if (!definitions) {
-					definitions = [mcpConfigPath, []];
-					collections.set(collectionId, definitions);
+				let collectionEntry = collections.get(collectionId);
+				if (!collectionEntry) {
+					collectionEntry = {
+						mcpConfigPath: mcpConfigInfo.mcpConfigPath,
+						sandbox: mcpConfigInfo.sandbox,
+						serverDefinitions: [],
+					};
+					collections.set(collectionId, collectionEntry);
 				}
 
 				const launch: McpServerLaunch = config.type === 'http' ? {
@@ -98,23 +113,22 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					cwd: config.cwd,
 				};
 
-				definitions[1].push({
+				collectionEntry.serverDefinitions.push({
 					id: `${collectionId}.${server.name}`,
 					label: server.name,
 					launch,
 					sandboxEnabled: config.type === 'http' ? undefined : config.sandboxEnabled,
-					sandbox: config.type === 'http' || !config.sandboxEnabled ? undefined : config.sandbox,
 					cacheNonce: await McpServerLaunch.hash(launch),
-					roots: mcpConfigPath?.workspaceFolder ? [mcpConfigPath.workspaceFolder.uri] : undefined,
+					roots: mcpConfigInfo.mcpConfigPath?.workspaceFolder ? [mcpConfigInfo.mcpConfigPath.workspaceFolder.uri] : undefined,
 					variableReplacement: {
-						folder: mcpConfigPath?.workspaceFolder,
+						folder: mcpConfigInfo.mcpConfigPath?.workspaceFolder,
 						section: mcpConfigurationSection,
-						target: mcpConfigPath?.target ?? ConfigurationTarget.USER,
+						target: mcpConfigInfo.mcpConfigPath?.target ?? ConfigurationTarget.USER,
 					},
 					devMode: config.dev,
 					presentation: {
-						order: mcpConfigPath?.order,
-						origin: mcpConfigPath?.locations.get(server.name)
+						order: mcpConfigInfo.mcpConfigPath?.order,
+						origin: mcpConfigInfo.locations.get(server.name)
 					}
 				});
 			}
@@ -125,7 +139,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 				}
 			}
 
-			for (const [id, [mcpConfigPath, serverDefinitions]] of collections) {
+			for (const [id, { mcpConfigPath, sandbox, serverDefinitions }] of collections) {
 				const newServerDefinitions = observableValue<readonly McpServerDefinition[]>(this, serverDefinitions);
 				const newCollection: McpCollectionDefinition = {
 					id,
@@ -139,6 +153,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					trustBehavior: McpServerTrust.Kind.Trusted,
 					configTarget: mcpConfigPath?.target ?? ConfigurationTarget.USER,
 					scope: mcpConfigPath?.scope ?? StorageScope.PROFILE,
+					sandbox,
 				};
 				const existingCollection = this.collections.get(id);
 
@@ -162,6 +177,21 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 		} catch (error) {
 			this.logService.error(error);
+		}
+	}
+
+	private _toMcpResourceTarget(target: ConfigurationTarget): McpResourceTarget | undefined {
+		switch (target) {
+			case ConfigurationTarget.USER:
+			case ConfigurationTarget.USER_LOCAL:
+			case ConfigurationTarget.USER_REMOTE:
+				return ConfigurationTarget.USER;
+			case ConfigurationTarget.WORKSPACE:
+				return ConfigurationTarget.WORKSPACE;
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				return ConfigurationTarget.WORKSPACE_FOLDER;
+			default:
+				return undefined;
 		}
 	}
 }

@@ -20,16 +20,16 @@ import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platf
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IMcpSandboxConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
+import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
 
 export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandboxService');
 
 export interface IMcpSandboxService {
 	readonly _serviceBrand: undefined;
-	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
+	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, rootSandboxConfig: IMcpSandboxConfiguration | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
 	isEnabled(serverDef: McpServerDefinition, serverLabel?: string): Promise<boolean>;
-	getSandboxConfigSuggestionMessage(serverLabel: string, error: McpConnectionState.Error): SandboxConfigSuggestionResult | undefined;
-	applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, error: McpConnectionState.Error, suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
+	getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[]): SandboxConfigSuggestionResult | undefined;
+	applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
 }
 
 type SandboxConfigSuggestions = {
@@ -78,13 +78,13 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return !!serverDef.sandboxEnabled;
 	}
 
-	public async launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
+	public async launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, rootSandboxConfig: IMcpSandboxConfiguration | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
 		if (launch.type !== McpServerTransportType.Stdio) {
 			return launch;
 		}
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
-			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, serverDef.sandbox, launch.cwd);
+			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, rootSandboxConfig, launch.cwd);
 			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
 			const sandboxEnv = this._getSandboxEnvVariables(launchDetails.tempDir, remoteAuthority);
 			if (launchDetails.srtPath) {
@@ -115,8 +115,8 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return launch;
 	}
 
-	public getSandboxConfigSuggestionMessage(serverLabel: string, error: McpConnectionState.Error): SandboxConfigSuggestionResult | undefined {
-		const suggestions = this._getSandboxConfigSuggestions(error);
+	public getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[]): SandboxConfigSuggestionResult | undefined {
+		const suggestions = this._getSandboxConfigSuggestions(potentialBlocks);
 		if (!suggestions) {
 			return undefined;
 		}
@@ -146,7 +146,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return {
 			message: localize(
 				'mcpSandboxSuggestion.message',
-				"The MCP server {0} failed in sandbox mode. VS Code found possible sandbox configuration updates:\n{1}",
+				"The MCP server {0} reported potential sandbox blocks. VS Code found possible sandbox configuration updates:\n{1}",
 				serverLabel,
 				suggestionLines.join('\n')
 			),
@@ -154,7 +154,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		};
 	}
 
-	public async applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, error: McpConnectionState.Error, suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
+	public async applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
 		const scanTarget = this._toMcpResourceTarget(configTarget);
 		const scanned = await this._mcpResourceScannerService.scanMcpServers(mcpResource, scanTarget);
 		const existingServer = scanned.servers?.[serverName];
@@ -166,7 +166,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		let suggestedAllowWrite = suggestedSandboxConfig?.filesystem?.allowWrite ?? [];
 
 		if (!suggestedAllowedDomains.length && !suggestedAllowWrite.length) {
-			const suggestions = this._getSandboxConfigSuggestions(error, scanned.sandbox);
+			const suggestions = this._getSandboxConfigSuggestions(potentialBlocks, scanned.sandbox);
 			if (!suggestions) {
 				return false;
 			}
@@ -214,9 +214,8 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return true;
 	}
 
-	private _getSandboxConfigSuggestions(error: McpConnectionState.Error, existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestions | undefined {
-		const sandboxDiagnosticLog = error.sandboxDiagnosticLog;
-		if (!sandboxDiagnosticLog) {
+	private _getSandboxConfigSuggestions(potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestions | undefined {
+		if (!potentialBlocks.length) {
 			return undefined;
 		}
 
@@ -224,22 +223,14 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const allowedDomains = new Set<string>();
 		const existingAllowWrite = new Set(existingSandboxConfig?.filesystem?.allowWrite ?? []);
 		const existingAllowedDomains = new Set(existingSandboxConfig?.network?.allowedDomains ?? []);
-		const allLines = sandboxDiagnosticLog.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
 
-		for (const line of allLines) {
-			const deniedMatch = line.match(/(?:No matching config rule, denying:|EAI_AGAIN|ENOTFOUND)\s+(.+)$/i);
-			if (deniedMatch?.[1]) {
-				const host = this._extractSandboxHost(deniedMatch[1]);
-				if (host && !existingAllowedDomains.has(host) && !allowedDomains.has(host)) {
-					allowedDomains.add(host);
-				}
+		for (const block of potentialBlocks) {
+			if (block.kind === 'network' && block.host && !existingAllowedDomains.has(block.host)) {
+				allowedDomains.add(block.host);
 			}
-			const hasFsErrorSignal = /(?:\b(?:EACCES|EPERM|ENOENT|fail(?:ed|ure)?)\b|not accessible)/i.test(line);
-			if (hasFsErrorSignal) {
-				const path = this._extractSandboxPath(line);
-				if (path && !existingAllowWrite.has(path) && !allowWrite.has(path)) {
-					allowWrite.add(path);
-				}
+
+			if (block.kind === 'filesystem' && block.path && !existingAllowWrite.has(block.path)) {
+				allowWrite.add(block.path);
 			}
 		}
 
@@ -409,32 +400,5 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const path = os === OperatingSystem.Windows ? win32 : posix;
 		return path.join(...segments);
 	};
-
-	private _extractSandboxPath(line: string): string | undefined {
-		const bracketedPath = line.match(/\[(\/[^\]\r\n]+)\]/);
-		if (bracketedPath?.[1]) {
-			return bracketedPath[1].trim();
-		}
-
-		const quotedPath = line.match(/["'](\/[^"']+)["']/);
-		if (quotedPath?.[1]) {
-			return quotedPath[1];
-		}
-
-		const trailingPath = line.match(/(\/[\w.\-~/ ]+)$/);
-		return trailingPath?.[1]?.trim();
-	}
-
-	private _extractSandboxHost(value: string): string | undefined {
-		const trimmed = value.trim().replace(/^["'`]+|["'`,.;]+$/g, '');
-		if (!trimmed) {
-			return undefined;
-		}
-
-		const withoutProtocol = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
-		const firstToken = withoutProtocol.split(/[\s/]/, 1)[0] ?? '';
-		const host = firstToken.replace(/:\d+$/, '');
-		return host || undefined;
-	}
 
 }

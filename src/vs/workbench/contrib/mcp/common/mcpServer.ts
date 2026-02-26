@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { mapValues } from '../../../../base/common/objects.js';
@@ -40,7 +40,7 @@ import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
-import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
+import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPotentialSandboxBlock, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, McpToolVisibility, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { McpApps } from './modelContextProtocolApps.js';
 import { UriTemplate } from './uriTemplate.js';
@@ -418,8 +418,11 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
 	private _lastErrorNotificationConnection: IMcpServerConnection | undefined;
-	private _lastErrorNotificationState: McpConnectionState.Kind | undefined;	/** Count of running tool calls, used to detect if sampling is during an LM call */
-	private _isQuietStart: boolean = false;
+	private _lastErrorNotificationState: McpConnectionState.Kind | undefined;
+	private _isQuietStart = false;
+	private _potentialSandboxBlocks: IMcpPotentialSandboxBlock[] = [];
+	private _potentialSandboxBlockListener = this._register(new MutableDisposable<IDisposable>());
+	/** Count of running tool calls, used to detect if sampling is during an LM call */
 	public runningToolCalls = new Set<IMcpToolCallContext>();
 
 	constructor(
@@ -517,6 +520,11 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			this._lastErrorNotificationConnection = cnx;
 			this._lastErrorNotificationState = state?.state;
+		}));
+
+		this._register(autorun(reader => {
+			const cnx = this._connection.read(reader);
+			this._potentialSandboxBlockListener.value = cnx?.onPotentialSandboxBlock(block => this.recordPotentialSandboxBlock(block));
 		}));
 
 		const staticMetadata = derived(reader => {
@@ -656,6 +664,8 @@ export class McpServer extends Disposable implements IMcpServer {
 				}
 			}
 
+			this._potentialSandboxBlocks.length = 0;
+
 			const start = Date.now();
 			let state = await connection.start({
 				createMessageRequestHandler: (params, token) => this._samplingService.sample({
@@ -714,12 +724,12 @@ export class McpServer extends Disposable implements IMcpServer {
 	}
 
 	private showInteractiveError(cnx: IMcpServerConnection, error: McpConnectionState.Error, debug?: boolean) {
-		const sandboxSuggestion = cnx.definition.sandboxEnabled ? this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, error) : undefined;
-		if (sandboxSuggestion) {
-			this._confirmAndApplySandboxConfigSuggestion(cnx, error, sandboxSuggestion);
+		if (cnx.definition.sandboxEnabled) {
+			if (!this.showSandboxConfigSuggestionFromPotentialBlocks(cnx, this._potentialSandboxBlocks)) {
+				this._notificationService.warn(localize('mcpServerError', 'The MCP server {0} could not be started: {1}', cnx.definition.label, error.message));
+			}
 			return;
 		}
-
 		if (error.code === 'ENOENT' && cnx.launchDefinition.type === McpServerTransportType.Stdio) {
 			let docsLink: string | undefined;
 			switch (cnx.launchDefinition.command) {
@@ -763,7 +773,21 @@ export class McpServer extends Disposable implements IMcpServer {
 		}
 	}
 
-	private _confirmAndApplySandboxConfigSuggestion(cnx: IMcpServerConnection, error: McpConnectionState.Error, suggestion: NonNullable<ReturnType<IMcpSandboxService['getSandboxConfigSuggestionMessage']>>): void {
+	public showSandboxConfigSuggestionFromPotentialBlocks(cnx: IMcpServerConnection, potentialBlocks: readonly IMcpPotentialSandboxBlock[]): boolean {
+		if (!cnx.definition.sandboxEnabled || !potentialBlocks.length) {
+			return false;
+		}
+
+		const suggestion = this._mcpSandboxService.getSandboxConfigSuggestionMessage(cnx.definition.label, potentialBlocks);
+		if (!suggestion) {
+			return false;
+		}
+
+		this._confirmAndApplySandboxConfigSuggestion(cnx, potentialBlocks, suggestion);
+		return true;
+	}
+
+	private _confirmAndApplySandboxConfigSuggestion(cnx: IMcpServerConnection, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestion: NonNullable<ReturnType<IMcpSandboxService['getSandboxConfigSuggestionMessage']>>): void {
 		const mcpResource = cnx.definition.presentation?.origin?.uri ?? this.collection.presentation?.origin;
 		const configTarget = this._fullDefinitions.get().collection?.configTarget;
 
@@ -784,14 +808,31 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			try {
-				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition.label, mcpResource, configTarget, error, suggestion.sandboxConfig);
+				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition.label, mcpResource, configTarget, potentialBlocks, suggestion.sandboxConfig);
 				if (updated) {
+					this._removePotentialSandboxBlocks(potentialBlocks);
 					this._notificationService.info(localize('mcpSandboxSuggestion.apply.success', "Updated sandbox configuration for {0} in mcp.json. Restart server.", cnx.definition.label));
 				}
 			} catch (e) {
 				this._notificationService.error(localize('mcpSandboxSuggestion.apply.error', "Failed to update sandbox configuration for {0}: {1}", cnx.definition.label, e instanceof Error ? e.message : String(e)));
 			}
 		});
+	}
+
+	public recordPotentialSandboxBlock(block: IMcpPotentialSandboxBlock): void {
+		this._potentialSandboxBlocks.push(block);
+		if (this._potentialSandboxBlocks.length > 200) {
+			this._potentialSandboxBlocks.splice(0, this._potentialSandboxBlocks.length - 200);
+		}
+	}
+
+	private _removePotentialSandboxBlocks(blocks: readonly IMcpPotentialSandboxBlock[]): void {
+		if (!blocks.length || !this._potentialSandboxBlocks.length) {
+			return;
+		}
+
+		const toRemove = new Set(blocks);
+		this._potentialSandboxBlocks = this._potentialSandboxBlocks.filter(block => !toRemove.has(block));
 	}
 
 	public stop(): Promise<void> {

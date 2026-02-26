@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -13,17 +14,17 @@ import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
-import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpClientMethods, IMcpPotentialSandboxBlock, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
-	private static readonly _maxRecentLogLines = 100;
-
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
 	private readonly _state = observableValue<McpConnectionState>('mcpServerState', { state: McpConnectionState.Kind.Stopped });
 	private readonly _requestHandler = observableValue<McpServerRequestHandler | undefined>('mcpServerRequestHandler', undefined);
+	private readonly _onPotentialSandboxBlock = this._register(new Emitter<IMcpPotentialSandboxBlock>());
 
 	public readonly state: IObservable<McpConnectionState> = this._state;
 	public readonly handler: IObservable<McpServerRequestHandler | undefined> = this._requestHandler;
+	public readonly onPotentialSandboxBlock = this._onPotentialSandboxBlock.event;
 
 	constructor(
 		private readonly _collection: McpCollectionDefinition,
@@ -66,21 +67,20 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	private adoptLaunch(launch: IMcpMessageTransport, methods: IMcpClientMethods): IReference<IMcpMessageTransport> {
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
-		const recentLogLines: string[] = [];
 
 		store.add(toDisposable(() => cts.dispose(true)));
 		store.add(launch);
 		store.add(launch.onDidLog(({ level, message }) => {
 			log(this._logger, level, message);
-			recentLogLines.push(message);
-			if (recentLogLines.length > McpServerConnection._maxRecentLogLines) {
-				recentLogLines.splice(0, recentLogLines.length - McpServerConnection._maxRecentLogLines);
+			const potentialBlock = this._toPotentialSandboxBlock(message);
+			if (potentialBlock) {
+				this._onPotentialSandboxBlock.fire(potentialBlock);
 			}
 		}));
 
 		let didStart = false;
 		store.add(autorun(reader => {
-			const state = this._withLogTailOnError(launch.state.read(reader), recentLogLines);
+			const state = launch.state.read(reader);
 			this._state.set(state, undefined);
 			this._logger.info(localize('mcpServer.state', 'Connection state: {0}', McpConnectionState.toString(state)));
 
@@ -109,7 +109,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 							} else {
 								this._logger.error(err);
 							}
-							this._state.set(this._withLogTailOnError({ state: McpConnectionState.Kind.Error, message }, recentLogLines), undefined);
+							this._state.set({ state: McpConnectionState.Kind.Error, message }, undefined);
 						}
 						store.dispose();
 					},
@@ -149,42 +149,64 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		});
 	}
 
-	private _withLogTailOnError(state: McpConnectionState, recentLogLines: readonly string[]): McpConnectionState {
-		if (state.state !== McpConnectionState.Kind.Error) {
-			return state;
-		}
-
-		const logTail = this._toSandboxDiagnosticLogTail(recentLogLines);
-		if (!logTail) {
-			return state;
-		}
-
-		if (state.sandboxDiagnosticLog?.includes(logTail)) {
-			return state;
-		}
-
-		return {
-			...state,
-			sandboxDiagnosticLog: state.sandboxDiagnosticLog ? `${state.sandboxDiagnosticLog}\n${logTail}` : logTail,
-		};
-	}
-
-	private _toSandboxDiagnosticLogTail(logLines: readonly string[]): string | undefined {
-		const sandboxLinePatterns = [
-			/\b(?:fail(?:ed|ure)?)\b/i,
-			/not accessible/i,
-			/No matching config rule, denying:/i,
-			/EAI_AGAIN/i,
-			/ENOTFOUND/i,
-			/\bENOENT\b/i,
-			/\b(?:EACCES|EPERM)\b/i,
-		];
-
-		const relevant = logLines.filter(line => sandboxLinePatterns.some(pattern => pattern.test(line))).slice(-80);
-		if (!relevant.length) {
+	private _toPotentialSandboxBlock(message: string): IMcpPotentialSandboxBlock | undefined {
+		if (!this.definition.sandboxEnabled) {
 			return undefined;
 		}
 
-		return relevant.join('\n');
+		if (/No matching config rule, denying:/i.test(message)) {
+			return {
+				kind: 'network',
+				message,
+				host: this._extractSandboxHost(message),
+			};
+		}
+
+		if (/\b(?:EAI_AGAIN|ENOTFOUND)\b/i.test(message)) {
+			return {
+				kind: 'network',
+				message,
+				host: this._extractSandboxHost(message),
+			};
+		}
+
+		if (/(?:\b(?:EACCES|EPERM|ENOENT|fail(?:ed|ure)?)\b|not accessible)/i.test(message)) {
+			return {
+				kind: 'filesystem',
+				message,
+				path: this._extractSandboxPath(message),
+			};
+		}
+
+		return undefined;
+	}
+
+	private _extractSandboxPath(line: string): string | undefined {
+		const bracketedPath = line.match(/\[(\/[^\]\r\n]+)\]/);
+		if (bracketedPath?.[1]) {
+			return bracketedPath[1].trim();
+		}
+
+		const quotedPath = line.match(/["'](\/[^"']+)["']/);
+		if (quotedPath?.[1]) {
+			return quotedPath[1];
+		}
+
+		const trailingPath = line.match(/(\/[\w.\-~/ ]+)$/);
+		return trailingPath?.[1]?.trim();
+	}
+
+	private _extractSandboxHost(value: string): string | undefined {
+		const deniedMatch = value.match(/No matching config rule, denying:\s+(.+)$/i);
+		const matchTarget = deniedMatch?.[1] ?? value;
+		const trimmed = matchTarget.trim().replace(/^["'`]+|["'`,.;]+$/g, '');
+		if (!trimmed) {
+			return undefined;
+		}
+
+		const withoutProtocol = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+		const firstToken = withoutProtocol.split(/[\s/]/, 1)[0] ?? '';
+		const host = firstToken.replace(/:\d+$/, '');
+		return host || undefined;
 	}
 }
