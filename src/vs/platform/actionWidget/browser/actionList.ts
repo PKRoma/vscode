@@ -10,7 +10,7 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
-import { IAction } from '../../../base/common/actions.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
@@ -96,6 +96,11 @@ export interface IActionListItem<T> {
 	 * When true, this item is always shown when filtering produces no other results.
 	 */
 	readonly showAlways?: boolean;
+	/**
+	 * Optional callback invoked when the item is removed via the built-in remove button.
+	 * When set, a close button is automatically added to the item toolbar.
+	 */
+	readonly onRemove?: () => void;
 }
 
 interface IActionMenuTemplateData {
@@ -176,6 +181,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 	constructor(
 		private readonly _supportsPreview: boolean,
+		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -297,11 +303,23 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		// Clear and render toolbar actions
 		dom.clearNode(data.toolbar);
-		data.container.classList.toggle('has-toolbar', !!element.toolbarActions?.length);
-		if (element.toolbarActions?.length) {
+		const toolbarActions = [...(element.toolbarActions ?? [])];
+		if (element.onRemove) {
+			toolbarActions.push(toAction({
+				id: 'actionList.remove',
+				label: localize('actionList.remove', "Remove"),
+				class: ThemeIcon.asClassName(Codicon.close),
+				run: () => {
+					element.onRemove!();
+					this._onRemoveItem?.(element);
+				},
+			}));
+		}
+		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
+		if (toolbarActions.length > 0) {
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
-			actionBar.push(element.toolbarActions, { icon: true, label: false });
+			actionBar.push(toolbarActions, { icon: true, label: false });
 		}
 	}
 
@@ -350,6 +368,13 @@ export interface IActionListOptions {
 	 * Minimum width for the action list.
 	 */
 	readonly minWidth?: number;
+
+
+
+	/**
+	 * When true and filtering is enabled, focuses the filter input when the list opens.
+	 */
+	readonly focusFilterOnOpen?: boolean;
 }
 
 export class ActionList<T> extends Disposable {
@@ -362,7 +387,7 @@ export class ActionList<T> extends Disposable {
 	private readonly _headerLineHeight = 24;
 	private readonly _separatorLineHeight = 8;
 
-	private readonly _allMenuItems: readonly IActionListItem<T>[];
+	private _allMenuItems: IActionListItem<T>[];
 
 	private readonly cts = this._register(new CancellationTokenSource());
 
@@ -430,7 +455,7 @@ export class ActionList<T> extends Disposable {
 
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -475,7 +500,7 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
-		this._allMenuItems = items;
+		this._allMenuItems = [...items];
 
 		// Create filter input
 		if (this._options?.showFilter) {
@@ -553,6 +578,9 @@ export class ActionList<T> extends Disposable {
 				if (isFiltering) {
 					continue;
 				}
+				if (item.section && this._collapsedSections.has(item.section)) {
+					continue;
+				}
 				visible.push(item);
 				continue;
 			}
@@ -607,6 +635,8 @@ export class ActionList<T> extends Disposable {
 			// Keep focus on the filter input if the user is typing a filter.
 			if (filterInputHasFocus) {
 				this._filterInput?.focus();
+				// Keep a highlighted item in the list so Enter works without pressing DownArrow first
+				this._focusCheckedOrFirst();
 			} else {
 				this._list.domFocus();
 				// Restore focus to the previously focused item
@@ -637,14 +667,7 @@ export class ActionList<T> extends Disposable {
 		return this._filterContainer;
 	}
 
-	/**
-	 * Returns the resolved filter placement based on the dropdown direction.
-	 * When shown above the anchor, filter is at the bottom (closest to anchor);
-	 * when shown below, filter is at the top.
-	 */
-	get filterPlacement(): 'top' | 'bottom' {
-		return this._showAbove ? 'bottom' : 'top';
-	}
+
 
 	get filterInput(): HTMLInputElement | undefined {
 		return this._filterInput;
@@ -655,6 +678,12 @@ export class ActionList<T> extends Disposable {
 	}
 
 	focus(): void {
+		if (this._filterInput && this._options?.focusFilterOnOpen) {
+			this._filterInput.focus();
+			// Highlight the first item so Enter works immediately
+			this._focusCheckedOrFirst();
+			return;
+		}
 		this._list.domFocus();
 		this._focusCheckedOrFirst();
 	}
@@ -671,7 +700,12 @@ export class ActionList<T> extends Disposable {
 					return;
 				}
 			}
-			this.focusNext();
+			// Set focus on the first focusable item without moving DOM focus
+			this._list.focusFirst(undefined, this.focusCondition);
+			const focused = this._list.getFocus();
+			if (focused.length > 0) {
+				this._list.reveal(focused[0]);
+			}
 		} finally {
 			this._suppressHover = false;
 		}
@@ -753,7 +787,8 @@ export class ActionList<T> extends Disposable {
 			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
 		}
 
-		const maxHeight = Math.max(availableHeight, this._actionLineHeight * 3 + filterHeight);
+		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.4);
+		const maxHeight = Math.min(Math.max(availableHeight, this._actionLineHeight * 3 + filterHeight), viewportMaxHeight);
 		const height = Math.min(listHeight + filterHeight, maxHeight);
 		return height - filterHeight;
 	}
@@ -799,7 +834,7 @@ export class ActionList<T> extends Disposable {
 					element.style.width = 'auto';
 					const width = element.getBoundingClientRect().width;
 					element.style.width = '';
-					itemWidths.push(width);
+					itemWidths.push(width + this._computeToolbarWidth(allItems[i]));
 				}
 			}
 
@@ -818,7 +853,7 @@ export class ActionList<T> extends Disposable {
 				element.style.width = 'auto';
 				const width = element.getBoundingClientRect().width;
 				element.style.width = '';
-				itemWidths.push(width);
+				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
 			}
 		}
 		return Math.max(...itemWidths, effectiveMinWidth);
@@ -835,18 +870,9 @@ export class ActionList<T> extends Disposable {
 		this._list.layout(listHeight, this._cachedMaxWidth);
 		this.domNode.style.height = `${listHeight}px`;
 
-		// Place filter container on the correct side based on dropdown direction.
-		// When shown above, filter goes below the list (closest to anchor).
-		// When shown below, filter goes above the list (closest to anchor).
+		// Place filter container on the preferred side.
 		if (this._filterContainer && this._filterContainer.parentElement) {
-			const parent = this._filterContainer.parentElement;
-			if (this._showAbove) {
-				// Move filter after the list
-				parent.appendChild(this._filterContainer);
-			} else {
-				// Move filter before the list
-				parent.insertBefore(this._filterContainer, this.domNode);
-			}
+			this._filterContainer.parentElement.insertBefore(this._filterContainer, this.domNode);
 		}
 
 		return this._cachedMaxWidth;
@@ -855,7 +881,24 @@ export class ActionList<T> extends Disposable {
 	focusPrevious() {
 		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
 			this._list.domFocus();
-			this._list.focusLast(undefined, this.focusCondition);
+			// An item is already highlighted; advance from it instead of jumping to last
+			const current = this._list.getFocus();
+			if (current.length > 0) {
+				this._list.focusPrevious(1, false, undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				// If we couldn't move (already at first), go to filter
+				if (focused.length > 0 && focused[0] >= current[0]) {
+					this._filterInput.focus();
+				} else if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			} else {
+				this._list.focusLast(undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			}
 			return;
 		}
 		const previousFocus = this._list.getFocus();
@@ -875,7 +918,21 @@ export class ActionList<T> extends Disposable {
 	focusNext() {
 		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
 			this._list.domFocus();
-			this._list.focusFirst(undefined, this.focusCondition);
+			// An item is already highlighted; advance from it instead of jumping to first
+			const current = this._list.getFocus();
+			if (current.length > 0) {
+				this._list.focusNext(1, false, undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			} else {
+				this._list.focusFirst(undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			}
 			return;
 		}
 		const previousFocus = this._list.getFocus();
@@ -977,6 +1034,27 @@ export class ActionList<T> extends Disposable {
 		if (!this._suppressHover) {
 			this._showHoverForElement(element, focusIndex);
 		}
+	}
+
+	private _removeItem(item: IActionListItem<T>): void {
+		const index = this._allMenuItems.indexOf(item);
+		if (index >= 0) {
+			this._allMenuItems.splice(index, 1);
+			this._applyFilter();
+		}
+	}
+
+	private _computeToolbarWidth(item: IActionListItem<T>): number {
+		let actionCount = item.toolbarActions?.length ?? 0;
+		if (item.onRemove) {
+			actionCount++;
+		}
+		if (actionCount === 0) {
+			return 0;
+		}
+		// Each toolbar action button is ~22px (16px icon + padding) plus 6px row gap
+		const actionButtonWidth = 22;
+		return actionCount * actionButtonWidth + 6;
 	}
 
 	private _getRowElement(index: number): HTMLElement | null {

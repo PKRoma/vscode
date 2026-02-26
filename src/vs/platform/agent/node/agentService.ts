@@ -441,7 +441,7 @@ export class AgentService extends Disposable implements IAgentService {
 					role: e.type === 'user.message' ? 'user' : 'assistant',
 					messageId: d?.messageId ?? '',
 					content: d?.content ?? '',
-					toolRequests: d?.toolRequests?.map(tr => ({
+					toolRequests: d?.toolRequests?.map((tr: { toolCallId: string; name: string; arguments?: unknown; type?: string }) => ({
 						toolCallId: tr.toolCallId,
 						name: tr.name,
 						arguments: tr.arguments !== undefined ? tryStringify(tr.arguments) : undefined,

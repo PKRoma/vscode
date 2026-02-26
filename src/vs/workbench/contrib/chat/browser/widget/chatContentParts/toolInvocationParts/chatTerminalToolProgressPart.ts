@@ -28,6 +28,7 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../../terminal/browser/xterm/decorationStyles.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
@@ -41,7 +42,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IContextKey, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
@@ -222,6 +223,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _decoration: TerminalCommandDecoration;
 	private _userToggledOutput: boolean = false;
 	private _isInThinkingContainer: boolean = false;
+	private _usesCollapsibleWrapper: boolean = false;
 	private _thinkingCollapsibleWrapper: ChatTerminalThinkingCollapsibleWrapper | undefined;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
@@ -360,15 +362,25 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this._decoration.update();
 
-		// wrap terminal when thinking setting enabled
+		// Keep thinking-container semantics separate from wrapper semantics.
 		const terminalToolsInThinking = this._configurationService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
+		const isSimpleTerminal = this._configurationService.getValue<boolean>(ChatConfiguration.SimpleTerminalCollapsible);
 		const requiresConfirmation = toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(toolInvocation);
+		this._isInThinkingContainer = terminalToolsInThinking && !requiresConfirmation;
+		this._usesCollapsibleWrapper = this._isInThinkingContainer || isSimpleTerminal;
 
-		if (terminalToolsInThinking && !requiresConfirmation) {
-			this._isInThinkingContainer = true;
+		if (this._usesCollapsibleWrapper) {
 			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, displayCommand, toolInvocation, context);
 		} else {
 			this.domNode = progressPart.domNode;
+			// Toggle show-checkmarks class on the progress container for accessibility setting
+			const updateCheckmarks = () => this.domNode.classList.toggle('show-checkmarks', !!this._configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+			updateCheckmarks();
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+					updateCheckmarks();
+				}
+			}));
 		}
 
 		// Only auto-expand in thinking containers if there's actual output to show
@@ -400,6 +412,18 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			isComplete
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
+
+		// Sync terminal output expansion with the collapsible wrapper.
+		// Skip the initial run — initial state is handled separately.
+		let isFirstRun = true;
+		this._register(autorun(r => {
+			const expanded = wrapper.expanded.read(r);
+			if (isFirstRun) {
+				isFirstRun = false;
+				return;
+			}
+			this._toggleOutput(expanded);
+		}));
 
 		return wrapper.domNode;
 	}
@@ -520,8 +544,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (this._store.isDisposed) {
 			return;
 		}
-		// don't show dropdown when in thinking container
-		if (this._isInThinkingContainer) {
+		// don't show dropdown when rendered with the simplified/collapsible wrapper
+		if (this._usesCollapsibleWrapper) {
 			return;
 		}
 		const resolvedCommand = command ?? this._getResolvedCommand();
@@ -624,7 +648,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				hasRealOutput,
 			}));
 			store.add(autoExpand.onDidRequestExpand(() => {
-				if (this._isInThinkingContainer) {
+				if (this._usesCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				this._toggleOutput(true);
@@ -1480,15 +1504,20 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		initialExpanded: boolean,
 		isComplete: boolean,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
 		this._isComplete = isComplete;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
+
+		if (isComplete) {
+			this.icon = Codicon.check;
+		}
 
 		this._setCodeFormattedTitle();
 		this.setExpanded(initialExpanded);
@@ -1518,6 +1547,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 			return;
 		}
 		this._isComplete = true;
+		this.icon = Codicon.check;
 		this._setCodeFormattedTitle();
 	}
 

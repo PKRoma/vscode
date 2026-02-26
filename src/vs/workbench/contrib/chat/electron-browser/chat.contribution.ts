@@ -28,7 +28,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { ChatViewId, IChatWidgetService } from '../browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { ChatEditorInput } from '../browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../browser/widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
@@ -53,7 +53,8 @@ class ChatCommandLineHandler extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -66,6 +67,14 @@ class ChatCommandLineHandler extends Disposable {
 			this.logService.trace('vscode:handleChatRequest', chatArgs);
 
 			this.prompt(chatArgs);
+		});
+
+		ipcRenderer.on('vscode:openChatSession', (_, ...args: unknown[]) => {
+			const sessionUriString = args[0] as string;
+			this.logService.trace('vscode:openChatSession', sessionUriString);
+
+			const sessionResource = URI.parse(sessionUriString);
+			this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		});
 	}
 

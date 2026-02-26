@@ -14,6 +14,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.unifiedAgentsBar.enabled': true,
 		'chat.viewSessions.enabled': false,
 
+		'breadcrumbs.enabled': false,
+
 		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
 
@@ -28,6 +30,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
 
+		'chat.customizationsMenu.userStoragePath': '~/.copilot',
+
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
 
@@ -36,11 +40,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.allowOpenInModalEditor': false,
+		'workbench.editor.useModal': 'all',
+		'workbench.panel.showLabels': false,
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',
 
 		'terminal.integrated.initialHint': false
 	},
-	donotCache: true
+	donotCache: true,
+	preventExperimentOverride: true,
+	source: 'sessionsDefaults'
 }]);

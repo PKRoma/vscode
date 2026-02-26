@@ -210,7 +210,7 @@ export class CopilotSessionWrapper extends Disposable {
 
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {
 		const emitter = this._register(new Emitter<SessionEventPayload<K>>());
-		const unsubscribe = this.session.on(eventType, (data) => emitter.fire(data));
+		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;
 	}
