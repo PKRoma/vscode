@@ -26,7 +26,7 @@ export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandbo
 
 export interface IMcpSandboxService {
 	readonly _serviceBrand: undefined;
-	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, rootSandboxConfig: IMcpSandboxConfiguration | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
+	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, mcpResource: URI | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
 	isEnabled(serverDef: McpServerDefinition, serverLabel?: string): Promise<boolean>;
 	getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined;
 	applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
@@ -78,11 +78,13 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return !!serverDef.sandboxEnabled;
 	}
 
-	public async launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, rootSandboxConfig: IMcpSandboxConfiguration | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
+	public async launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, mcpResource: URI | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
 		if (launch.type !== McpServerTransportType.Stdio) {
 			return launch;
 		}
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
+			const scanTarget = this._toMcpResourceTarget(configTarget);
+			const rootSandboxConfig = mcpResource ? (await this._mcpResourceScannerService.scanMcpServers(mcpResource, scanTarget)).sandbox : undefined;
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
 			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, rootSandboxConfig, launch.cwd);
 			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
