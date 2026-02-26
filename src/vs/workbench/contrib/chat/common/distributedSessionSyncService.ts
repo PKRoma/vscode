@@ -285,10 +285,12 @@ export function mergeVersionVectors(a: SessionVersionVector, b: SessionVersionVe
 
 /**
  * Determine whether a session needs a new owner based on host status.
+ * Active sessions (in-progress or waiting for input) need failover
+ * when their owner host goes offline.
  */
 export function sessionNeedsFailover(snapshot: IDistributedSessionSnapshot, hosts: readonly ISessionHost[]): boolean {
 	if (snapshot.item.status !== ChatSessionStatus.InProgress && snapshot.item.status !== ChatSessionStatus.NeedsInput) {
-		return false; // only in-progress sessions need failover
+		return false; // only active sessions need failover
 	}
 	const ownerHost = hosts.find(h => h.hostId === snapshot.ownerHostId);
 	return !ownerHost || ownerHost.status === HostStatus.Offline;

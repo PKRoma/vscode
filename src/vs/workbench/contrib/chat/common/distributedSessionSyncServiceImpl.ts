@@ -8,6 +8,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatSessionItem } from './chatSessionsService.js';
 import {
 	compareVersionVectors,
 	HostStatus,
@@ -262,22 +263,23 @@ export class DistributedSessionSyncService extends Disposable implements IDistri
 			clientId
 		);
 
-		const updatedItem = { ...current.item };
+		const updatedItem: IChatSessionItem = { ...current.item };
+		const mutable = updatedItem as { -readonly [K in keyof IChatSessionItem]: IChatSessionItem[K] };
 		if (update.patch.label !== undefined) {
-			(updatedItem as { label: string }).label = update.patch.label;
+			mutable.label = update.patch.label;
 		}
 		if (update.patch.status !== undefined) {
-			(updatedItem as { status?: number }).status = update.patch.status;
+			mutable.status = update.patch.status;
 		}
 		if (update.patch.archived !== undefined) {
-			(updatedItem as { archived?: boolean }).archived = update.patch.archived;
+			mutable.archived = update.patch.archived;
 		}
 
 		const newSnapshot: IDistributedSessionSnapshot = {
 			sessionResource: current.sessionResource,
 			version: newVersion,
 			ownerHostId: current.ownerHostId,
-			item: updatedItem,
+			item: mutable,
 			timestamp: Date.now(),
 		};
 

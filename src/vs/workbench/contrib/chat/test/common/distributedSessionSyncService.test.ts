@@ -245,7 +245,7 @@ suite('DistributedSessionSyncService', () => {
 				displayName: 'Test Host',
 				endpoint: URI.parse('wss://host-1.example.com'),
 			}));
-			void hostReg;
+			assert.ok(hostReg);
 
 			service._simulateHostFailure('host-1');
 
