@@ -356,6 +356,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				}
 			}
 
+			// Set the selected mode on the input model so the mode picker reflects it
+			if (session.modeId) {
+				const resolvedMode = this.chatModeService.findModeById(session.modeId);
+				if (resolvedMode) {
+					model.inputModel.setState({
+						mode: { id: resolvedMode.id, kind: resolvedMode.kind }
+					});
+				}
+			}
+
 			// Apply selected options (repository, branch, etc.) to the contributed session
 			if (selectedOptions && selectedOptions.size > 0) {
 				const contributedSession = model.contributedChatSession;
