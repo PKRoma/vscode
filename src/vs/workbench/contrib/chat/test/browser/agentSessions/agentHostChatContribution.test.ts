@@ -126,7 +126,7 @@ function createContribution(disposables: DisposableStore) {
 	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController));
-	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler));
+	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, { provider: 'copilot' as const }));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostChatContribution));
 
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };

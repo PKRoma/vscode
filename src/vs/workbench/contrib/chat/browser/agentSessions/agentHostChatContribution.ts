@@ -12,7 +12,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
-import { AGENT_HOST_MODEL_VENDOR, AGENT_HOST_SESSION_TYPE } from './agentHost/agentHostConstants.js';
+import { AGENT_HOST_CLAUDE_MODEL_VENDOR, AGENT_HOST_CLAUDE_SESSION_TYPE, AGENT_HOST_MODEL_VENDOR, AGENT_HOST_SESSION_TYPE } from './agentHost/agentHostConstants.js';
 import { AgentHostLanguageModelProvider } from './agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHost/agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHost/agentHostSessionListController.js';
@@ -35,17 +35,29 @@ export class AgentHostChatContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		// Session list controller
+		// Session list controller - Copilot
 		const listController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));
 		this._register(chatSessionsService.registerChatSessionItemController(AGENT_HOST_SESSION_TYPE, listController));
 
-		// Session handler + agent
-		const sessionHandler = this._register(this._instantiationService.createInstance(AgentHostSessionHandler));
+		// Session handler + agent - Copilot
+		const sessionHandler = this._register(this._instantiationService.createInstance(AgentHostSessionHandler, { provider: 'copilot' as const }));
 		this._register(chatSessionsService.registerChatSessionContentProvider(AGENT_HOST_SESSION_TYPE, sessionHandler));
 
-		// Language model provider (exposes SDK models in the model picker)
+		// Session list controller - Claude
+		const claudeListController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));
+		this._register(chatSessionsService.registerChatSessionItemController(AGENT_HOST_CLAUDE_SESSION_TYPE, claudeListController));
+
+		// Session handler + agent - Claude
+		const claudeSessionHandler = this._register(this._instantiationService.createInstance(AgentHostSessionHandler, { provider: 'claude' as const }));
+		this._register(chatSessionsService.registerChatSessionContentProvider(AGENT_HOST_CLAUDE_SESSION_TYPE, claudeSessionHandler));
+
+		// Language model provider - Copilot (exposes SDK models in the model picker)
 		const modelProvider = new AgentHostLanguageModelProvider(this._agentHostService, logService);
 		this._register(languageModelsService.registerLanguageModelProvider(AGENT_HOST_MODEL_VENDOR, modelProvider));
+
+		// Language model provider - Claude
+		const claudeModelProvider = new AgentHostLanguageModelProvider(this._agentHostService, logService);
+		this._register(languageModelsService.registerLanguageModelProvider(AGENT_HOST_CLAUDE_MODEL_VENDOR, claudeModelProvider));
 
 		// Auth
 		this._pushAuthToken();

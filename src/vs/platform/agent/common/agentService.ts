@@ -22,7 +22,10 @@ export interface IAgentSessionMetadata {
 	readonly summary?: string;
 }
 
+export type AgentProvider = 'copilot' | 'claude';
+
 export interface IAgentCreateSessionConfig {
+	readonly provider?: AgentProvider;
 	readonly model?: string;
 	readonly sessionId?: string;
 }
@@ -130,6 +133,48 @@ export type IAgentProgressEvent =
 	| IAgentIdleEvent
 	| IAgentToolStartEvent
 	| IAgentToolCompleteEvent;
+
+// ---- Agent provider interface -----------------------------------------------
+
+/**
+ * Implemented by each agent backend (e.g. Copilot SDK, Claude Agent SDK).
+ * The {@link IAgentService} dispatches to the appropriate agent based on
+ * the agent id.
+ */
+export interface IAgent {
+	/** Unique identifier for this provider (e.g. `'copilot'`, `'claude'`). */
+	readonly id: AgentProvider;
+
+	/** Fires when the provider streams progress for a session. */
+	readonly onDidSessionProgress: Event<IAgentProgressEvent>;
+
+	/** Create a new session. Returns the session ID. */
+	createSession(config?: IAgentCreateSessionConfig): Promise<string>;
+
+	/** Send a user message into an existing session. */
+	sendMessage(sessionId: string, prompt: string): Promise<void>;
+
+	/** Retrieve all session events/messages for reconstruction. */
+	getSessionMessages(sessionId: string): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
+
+	/** Dispose a session, freeing resources. */
+	disposeSession(sessionId: string): Promise<void>;
+
+	/** List available models from this provider. */
+	listModels(): Promise<IAgentModelInfo[]>;
+
+	/** List persisted sessions from this provider. */
+	listSessions(): Promise<IAgentSessionMetadata[]>;
+
+	/** Set the authentication token for this provider. */
+	setAuthToken(token: string): Promise<void>;
+
+	/** Gracefully shut down all sessions. */
+	shutdown(): Promise<void>;
+
+	/** Dispose this provider and all its resources. */
+	dispose(): void;
+}
 
 // ---- Service interfaces -----------------------------------------------------
 

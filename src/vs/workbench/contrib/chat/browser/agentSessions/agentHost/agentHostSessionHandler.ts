@@ -13,7 +13,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IAgentHostService, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider } from '../../../../../../platform/agent/common/agentService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -21,7 +21,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
-import { AGENT_HOST_AGENT_ID, AGENT_HOST_SESSION_TYPE } from './agentHostConstants.js';
+import { AGENT_HOST_AGENT_ID, AGENT_HOST_CLAUDE_AGENT_ID, AGENT_HOST_SESSION_TYPE, AGENT_HOST_CLAUDE_SESSION_TYPE } from './agentHostConstants.js';
 
 // =============================================================================
 // History reconstruction
@@ -154,12 +154,20 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 // Session handler
 // =============================================================================
 
+export interface IAgentHostSessionHandlerConfig {
+	readonly provider: AgentProvider;
+}
+
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _resourceToSessionId = new Map<string, string>();
 	private readonly _activeSessions = new Map<string, AgentHostChatSession>();
+	private readonly _provider: AgentProvider;
+	private readonly _agentId: string;
+	private readonly _sessionType: string;
 
 	constructor(
+		config: IAgentHostSessionHandlerConfig,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ILogService private readonly _logService: ILogService,
@@ -167,6 +175,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._provider = config.provider;
+		this._agentId = config.provider === 'claude' ? AGENT_HOST_CLAUDE_AGENT_ID : AGENT_HOST_AGENT_ID;
+		this._sessionType = config.provider === 'claude' ? AGENT_HOST_CLAUDE_SESSION_TYPE : AGENT_HOST_SESSION_TYPE;
 		this._registerAgent();
 	}
 
@@ -197,11 +208,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _registerAgent(): void {
+		const isClaude = this._provider === 'claude';
 		const agentData: IChatAgentData = {
-			id: AGENT_HOST_AGENT_ID,
-			name: AGENT_HOST_AGENT_ID,
-			fullName: 'Agent Host',
-			description: 'Copilot SDK agent running in a dedicated process',
+			id: this._agentId,
+			name: this._agentId,
+			fullName: isClaude ? 'Agent Host - Claude' : 'Agent Host - Copilot',
+			description: isClaude
+				? 'Claude SDK agent running in a dedicated process'
+				: 'Copilot SDK agent running in a dedicated process',
 			extensionId: new ExtensionIdentifier('vscode.agent-host'),
 			extensionVersion: undefined,
 			extensionPublisherId: 'vscode',
@@ -316,7 +330,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private async _resolveSessionId(sessionResource: URI, model?: string): Promise<string> {
-		if (sessionResource.scheme === AGENT_HOST_SESSION_TYPE && !sessionResource.path.startsWith('/untitled-')) {
+		if (sessionResource.scheme === this._sessionType && !sessionResource.path.startsWith('/untitled-')) {
 			return sessionResource.path.substring(1);
 		}
 
@@ -326,7 +340,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return existing;
 		}
 
-		const sessionId = await this._agentHostService.createSession({ model });
+		const sessionId = await this._agentHostService.createSession({ model, provider: this._provider });
 		this._resourceToSessionId.set(key, sessionId);
 		return sessionId;
 	}
