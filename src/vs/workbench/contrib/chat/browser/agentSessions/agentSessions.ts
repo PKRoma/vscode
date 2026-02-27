@@ -46,7 +46,7 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
  * Observable holding the display name for the background agent session provider.
  * Updated via experiment treatment to allow A/B testing of the display name.
  */
-export const backgroundAgentDisplayName = observableValue<string>('backgroundAgentDisplayName', localize('chat.session.providerLabel.background', "Background"));
+export const backgroundAgentDisplayName = observableValue<string>('backgroundAgentDisplayName', localize('chat.session.providerLabel.background', "Copilot CLI"));
 
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
 	switch (provider) {
