@@ -62,8 +62,19 @@ async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePat
 		return undefined;
 	}
 
-	console.log('[GitHub] resolveSessionRepo: remotes:', JSON.stringify(repository.state.remotes.map(r => ({ name: r.name, fetchUrl: r.fetchUrl }))));
-	console.log('[GitHub] resolveSessionRepo: HEAD:', JSON.stringify(repository.state.HEAD));
+	// After openRepository, the state may not be populated yet — wait for it
+	if (!repository.state.HEAD) {
+		await new Promise<void>(resolve => {
+			const listener = repository!.state.onDidChange(() => {
+				if (repository!.state.HEAD) {
+					listener.dispose();
+					resolve();
+				}
+			});
+			// Timeout after 10s to avoid hanging
+			setTimeout(() => { listener.dispose(); resolve(); }, 10000);
+		});
+	}
 
 	const remotes = repository.state.remotes
 		.filter(remote => remote.fetchUrl && getRepositoryFromUrl(remote.fetchUrl));
