@@ -27,7 +27,7 @@ import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat
 import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/chat/browser/agentSessions/agentSessions.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileContext, IPromptsService, Target } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -35,11 +35,12 @@ import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatR
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
+import { IChatModeService } from '../../contrib/chat/common/chatModes.js';
 import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
@@ -120,6 +121,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@IChatModeService private readonly _chatModeService: IChatModeService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -152,12 +154,32 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		// Push the initial active session if there is already a focused widget
 		this._acceptActiveChatSession(this._chatWidgetService.lastFocusedWidget);
+
+		// Push custom agents to ext host
+		this._pushCustomAgents();
+		this._register(this._chatModeService.onDidChangeChatModes(() => {
+			this._pushCustomAgents();
+		}));
 	}
 
 	private _acceptActiveChatSession(widget: IChatWidget | undefined): void {
 		const sessionResource = widget?.viewModel?.sessionResource;
 		const isLocal = sessionResource && getAgentSessionProvider(sessionResource) === AgentSessionProviders.Local;
 		this._proxy.$acceptActiveChatSession(isLocal ? sessionResource : undefined);
+	}
+
+	private _pushCustomAgents(): void {
+		const { custom } = this._chatModeService.getModes();
+		const dtos: ICustomAgentDto[] = custom.map(mode => ({
+			name: mode.name.get(),
+			label: mode.label.get(),
+			description: mode.description?.get() ?? '',
+			prompt: mode.modeInstructions?.get()?.content ?? '',
+			tools: [...(mode.customTools?.get() ?? [])],
+			target: mode.target.get() === Target.Undefined ? undefined : mode.target.get(),
+			model: mode.model?.get()?.[0] ?? undefined,
+		}));
+		this._proxy.$acceptCustomAgents(dtos);
 	}
 
 	$unregisterAgent(handle: number): void {

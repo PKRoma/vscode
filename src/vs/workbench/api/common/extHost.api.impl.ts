@@ -1677,6 +1677,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatDebug');
 				return extHostChatDebug.registerChatDebugLogProvider(provider);
 			},
+			get customAgents() {
+				checkProposedApiEnabled(extension, 'chatCustomAgents');
+				return extHostChatAgents2.customAgents;
+			},
+			onDidChangeCustomAgents: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatCustomAgents');
+				return _asExtensionEvent(extHostChatAgents2.onDidChangeCustomAgents)(listener, thisArgs, disposables);
+			},
 		};
 
 		// namespace: lm

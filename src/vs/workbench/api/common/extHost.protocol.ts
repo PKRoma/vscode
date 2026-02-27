@@ -1614,6 +1614,17 @@ export interface ExtHostChatAgentsShape2 {
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
+	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
+}
+
+export interface ICustomAgentDto {
+	name: string;
+	label: string;
+	description: string;
+	prompt: string;
+	tools: readonly string[];
+	target: string | undefined;
+	model: string | undefined;
 }
 export interface IChatParticipantMetadata {
 	participant: string;

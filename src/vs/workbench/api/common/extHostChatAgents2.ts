@@ -27,7 +27,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -487,6 +487,11 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _onDidDisposeChatSession = this._register(new Emitter<string>());
 	readonly onDidDisposeChatSession = this._onDidDisposeChatSession.event;
 
+	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
+	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
+
+	private _customAgents: ICustomAgentDto[] = [];
+
 	private _activeChatPanelSessionResource: URI | undefined;
 
 	private readonly _onDidChangeActiveChatPanelSessionResource = this._register(new Emitter<URI | undefined>());
@@ -494,6 +499,23 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	get activeChatPanelSessionResource(): URI | undefined {
 		return this._activeChatPanelSessionResource;
+	}
+
+	get customAgents(): readonly ICustomAgentDto[] {
+		return this._customAgents;
+	}
+
+	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
+		this._customAgents = agents.map(a => Object.freeze({
+			name: a.name,
+			label: a.label,
+			description: a.description,
+			prompt: a.prompt,
+			tools: Object.freeze([...a.tools]),
+			target: a.target,
+			model: a.model,
+		}));
+		this._onDidChangeCustomAgents.fire();
 	}
 
 	constructor(
