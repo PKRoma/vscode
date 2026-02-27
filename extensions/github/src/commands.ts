@@ -42,13 +42,18 @@ interface ResolvedSessionRepo {
 	head: { name: string; upstream?: { name: string; remote: string; commit: string } };
 }
 
-function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePath?: string } | undefined, showErrors: boolean): ResolvedSessionRepo | undefined {
+async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePath?: string } | undefined, showErrors: boolean): Promise<ResolvedSessionRepo | undefined> {
 	if (!sessionMetadata?.worktreePath) {
 		return undefined;
 	}
 
 	const worktreeUri = vscode.Uri.file(sessionMetadata.worktreePath);
-	const repository = gitAPI.getRepository(worktreeUri);
+	let repository = gitAPI.getRepository(worktreeUri);
+
+	// The git extension may not have discovered the worktree yet, try opening it explicitly
+	if (!repository) {
+		repository = await gitAPI.openRepository(worktreeUri);
+	}
 
 	if (!repository) {
 		if (showErrors) {
@@ -91,7 +96,7 @@ function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePath?: st
 }
 
 async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined, accessToken: string | undefined): Promise<void> {
-	const resolved = resolveSessionRepo(gitAPI, sessionMetadata, false);
+	const resolved = await resolveSessionRepo(gitAPI, sessionMetadata, false);
 	if (!resolved) {
 		vscode.commands.executeCommand('setContext', 'github.hasOpenPullRequest', false);
 		return;
@@ -119,7 +124,7 @@ async function createPullRequest(gitAPI: GitAPI, sessionResource: vscode.Uri | u
 		return;
 	}
 
-	const resolved = resolveSessionRepo(gitAPI, sessionMetadata, true);
+	const resolved = await resolveSessionRepo(gitAPI, sessionMetadata, true);
 	if (!resolved) {
 		return;
 	}
@@ -149,7 +154,7 @@ async function createPullRequest(gitAPI: GitAPI, sessionResource: vscode.Uri | u
 }
 
 async function openPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined, accessToken: string | undefined): Promise<void> {
-	const resolved = resolveSessionRepo(gitAPI, sessionMetadata, true);
+	const resolved = await resolveSessionRepo(gitAPI, sessionMetadata, true);
 	if (!resolved) {
 		return;
 	}
