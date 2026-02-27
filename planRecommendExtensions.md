@@ -50,7 +50,7 @@ The modal is tracked via `extensionsAssistant/stronglyRecommendedModalShown` (wo
 If the user chose "Not Now" or "Show Extensions" but didn't install, subsequent opens show a sticky notification toast:
 
 ```
-This workspace strongly recommends the 'Python' extension from Microsoft 
+This workspace strongly recommends the 'Python' extension from Microsoft
 and 'ESLint' extension from Dirk Baeumer. Do you want to install?
 
 [Install]  [Show Recommendations]  [...Don't Show Again]
