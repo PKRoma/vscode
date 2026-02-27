@@ -58,13 +58,31 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					} satisfies IActionWidgetDropdownAction,
 					{
 						...action,
-						id: 'chat.permissions.autopilot',
-						label: localize('permissions.autoApproveAll', "Auto Approvals"),
+						id: 'chat.permissions.autoApprove',
+						label: localize('permissions.autoApprove', "Auto Approvals"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
+						checked: currentLevel === ChatPermissionLevel.AutoApprove,
+						tooltip: '',
+						hover: {
+							content: localize('permissions.autoApprove.description', "Auto-approve all tool calls, retry on errors, skip on max requests"),
+							position: pickerOptions.hoverPosition
+						},
+						run: async () => {
+							delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+							if (this.element) {
+								this.renderLabel(this.element);
+							}
+						},
+					} satisfies IActionWidgetDropdownAction,
+					{
+						...action,
+						id: 'chat.permissions.autopilot',
+						label: localize('permissions.autopilot', "Autopilot"),
+						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						tooltip: '',
 						hover: {
-							content: localize('permissions.autoApproveAll.description', "Automatically approve all tool calls"),
+							content: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
@@ -88,19 +106,37 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		this.setAriaLabelAttributes(element);
 
 		const level = this.delegate.currentPermissionLevel.get();
-		const isFullAccess = level === ChatPermissionLevel.Autopilot;
-		const icon = isFullAccess ? Codicon.warning : Codicon.shield;
+		let icon: ThemeIcon;
+		let label: string;
+		switch (level) {
+			case ChatPermissionLevel.Autopilot:
+				icon = Codicon.rocket;
+				label = localize('permissions.autopilot.label', "Autopilot");
+				break;
+			case ChatPermissionLevel.AutoApprove:
+				icon = Codicon.warning;
+				label = localize('permissions.autoApprove.label', "Auto Approvals");
+				break;
+			default:
+				icon = Codicon.shield;
+				label = localize('permissions.default.label', "Default Approvals");
+				break;
+		}
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		const label = isFullAccess
-			? localize('permissions.autoApproveAll.label', "Auto Approvals")
-			: localize('permissions.default.label', "Default Approvals");
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);
-		element.classList.toggle('warning', isFullAccess);
+		element.classList.toggle('warning', level === ChatPermissionLevel.Autopilot);
+		element.classList.toggle('info', level === ChatPermissionLevel.AutoApprove);
 		return null;
+	}
+
+	public refresh(): void {
+		if (this.element) {
+			this.renderLabel(this.element);
+		}
 	}
 }

@@ -118,7 +118,8 @@ declare module 'vscode' {
 
 		/**
 		 * The permission level for tool auto-approval in this request.
-		 * When set to 'autopilot', all tool calls and confirmations should be auto-approved.
+		 * - `'autoApprove'`: Auto-approve all tool calls, retry on errors, skip on max requests.
+		 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
 		 */
 		readonly permissionLevel?: string;
 

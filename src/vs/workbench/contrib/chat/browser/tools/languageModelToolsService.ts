@@ -40,7 +40,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../common/constants.js';
+import { ChatConfiguration, isAutoApproveLevel } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -1047,7 +1047,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
-			if (request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}
@@ -1088,7 +1088,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
-			if (request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}

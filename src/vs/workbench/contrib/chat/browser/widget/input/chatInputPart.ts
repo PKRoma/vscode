@@ -409,6 +409,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentModeObservable;
 	}
 
+	public get currentPermissionLevelObs(): IObservable<ChatPermissionLevel> {
+		return this._currentPermissionLevel;
+	}
+
 	public get currentModeInfo(): IChatRequestModeInfo {
 		const mode = this._currentModeObservable.get();
 		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = mode.isBuiltin ? this.currentModeKind : 'custom';
@@ -801,6 +805,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.permissionWidget?.show();
 	}
 
+	public setPermissionLevel(level: ChatPermissionLevel): void {
+		this._currentPermissionLevel.set(level, undefined);
+		this.permissionLevelKey.set(level);
+		this.permissionWidget?.refresh();
+	}
+
 	public openSessionTargetPicker(): void {
 		this.sessionTargetWidget?.show();
 	}
@@ -886,6 +896,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSyncDisposables.clear();
 		this.selectedToolsModel.resetSessionEnablementState();
 		this._chatSessionIsEmpty = chatSessionIsEmpty;
+
+		// Reset permission level to default on new sessions
+		if (chatSessionIsEmpty) {
+			this._currentPermissionLevel.set(ChatPermissionLevel.Default, undefined);
+			this.permissionLevelKey.set(ChatPermissionLevel.Default);
+			this.permissionWidget?.refresh();
+		}
 
 		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
 		if (chatSessionIsEmpty) {

@@ -48,7 +48,7 @@ import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, isAutoApproveLevel } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
@@ -1257,7 +1257,7 @@ export class ChatService extends Disposable implements IChatService {
 	private static readonly MAX_AUTO_RETRIES = 5;
 
 	private _shouldAutoRetry(options: IChatSendRequestOptions | undefined, attempt: number, errorDetails?: IChatResponseErrorDetails): boolean {
-		if (options?.modeInfo?.permissionLevel !== ChatPermissionLevel.Autopilot) {
+		if (!isAutoApproveLevel(options?.modeInfo?.permissionLevel)) {
 			return false;
 		}
 		if (attempt >= ChatService.MAX_AUTO_RETRIES) {
