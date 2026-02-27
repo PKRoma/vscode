@@ -73,46 +73,41 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 	const ts = () => new Date().toISOString().slice(11, 23);
 	console.log(`[e2e ${ts()}] Electron process launched`);
 
-	// Collect windows as they open
-	const openedWindows: playwright.Page[] = [...electron.windows()];
-	console.log(`[e2e ${ts()}] Windows at launch: ${openedWindows.length}`);
+	// firstWindow() correctly handles the race between "window already open" and "not yet open"
+	console.log(`[e2e ${ts()}] Waiting for first window via firstWindow()…`);
+	const firstPage = await electron.firstWindow({ timeout: 30_000 });
+	console.log(`[e2e ${ts()}] Got first window`);
+
+	// Track all windows; the sessions window may be the 1st or a later one
+	const allPages: playwright.Page[] = [firstPage];
 	electron.on('window', (win: playwright.Page) => {
-		console.log(`[e2e ${ts()}] New window opened`);
-		openedWindows.push(win);
+		console.log(`[e2e ${ts()}] Additional window opened (total: ${allPages.length + 1})`);
+		allPages.push(win);
 	});
 
-	// Wait for the first window to appear
-	if (openedWindows.length === 0) {
-		console.log(`[e2e ${ts()}] Waiting for first window…`);
-		const w = await electron.waitForEvent('window', { timeout: 0 });
-		openedWindows.push(w);
-	}
-	console.log(`[e2e ${ts()}] First window available. Total windows: ${openedWindows.length}`);
+	// Give VS Code up to 10s to open any additional windows (e.g. a background window first)
+	await firstPage.waitForTimeout(10_000);
+	console.log(`[e2e ${ts()}] Total windows after wait: ${allPages.length}`);
 
-	// With --sessions flag, VS Code opens a sessions window (may be 1st or 2nd window).
-	// Wait up to 15s for a second window; if one never comes, use the first.
-	let page: playwright.Page;
-	if (openedWindows.length < 2) {
-		console.log(`[e2e ${ts()}] Waiting up to 15s for sessions window…`);
-		const maybeSecond = await Promise.race([
-			electron.waitForEvent('window', { timeout: 15_000 }).then(w => { openedWindows.push(w); return w; }),
-			new Promise<null>(resolve => setTimeout(() => resolve(null), 15_000)),
-		]).catch(() => null);
-		if (maybeSecond) {
-			console.log(`[e2e ${ts()}] Second window opened`);
-		} else {
-			console.log(`[e2e ${ts()}] No second window appeared after 15s. Windows: ${openedWindows.length}`);
+	// Find the window that has the sessions workbench
+	let page: playwright.Page = firstPage;
+	for (const win of allPages) {
+		if (win.isClosed()) {
+			console.log(`[e2e ${ts()}] Skipping closed window`);
+			continue;
+		}
+		try {
+			const cls = await win.evaluate(() => document.querySelector('.monaco-workbench')?.className ?? '');
+			console.log(`[e2e ${ts()}] Window classes snippet: "${String(cls).slice(0, 120)}"`);
+			if (String(cls).includes('agent-sessions-workbench')) {
+				page = win;
+				console.log(`[e2e ${ts()}] Found sessions window`);
+				break;
+			}
+		} catch (e) {
+			console.log(`[e2e ${ts()}] Could not evaluate window: ${e}`);
 		}
 	}
-
-	// Pick the last opened window (the sessions window is always the newest)
-	page = openedWindows[openedWindows.length - 1];
-	console.log(`[e2e ${ts()}] Using window ${openedWindows.indexOf(page) + 1}/${openedWindows.length}, isClosed=${page.isClosed()}`);
-
-	// Give the renderer a moment to finish painting, then set up mocks
-	console.log(`[e2e ${ts()}] Waiting 1s for renderer…`);
-	await page.waitForTimeout(1_000);
-	console.log(`[e2e ${ts()}] isClosed=${page.isClosed()}`);
 
 	// Intercept Copilot API calls so the token manager sees a valid session
 	// without needing real GitHub credentials.
@@ -127,22 +122,7 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 	});
 
 	// Wait for the sessions workbench to render
-	console.log(`[e2e ${ts()}] Waiting for .agent-sessions-workbench…`);
-
-	// Evaluate directly in page to check DOM state without waiting
-	try {
-		const bodyHTML = await page.evaluate(() => document.body.className).catch(e => `evaluate error: ${e}`);
-		console.log(`[e2e ${ts()}] body.className: "${bodyHTML}"`);
-		const hasClass = await page.evaluate(() => !!document.querySelector('.agent-sessions-workbench')).catch(e => `evaluate error: ${e}`);
-		console.log(`[e2e ${ts()}] .agent-sessions-workbench exists in DOM: ${hasClass}`);
-		const allClasses = await page.evaluate(() =>
-			Array.from(document.querySelectorAll('[class]')).slice(0, 10).map(el => el.className)
-		).catch(e => [`evaluate error: ${e}`]);
-		console.log(`[e2e ${ts()}] First 10 elements with classes:`, allClasses);
-	} catch (e) {
-		console.log(`[e2e ${ts()}] DOM inspection failed: ${e}`);
-	}
-
+	console.log(`[e2e ${ts()}] Waiting for .agent-sessions-workbench to be visible…`);
 	await page.waitForSelector('.agent-sessions-workbench', { state: 'visible', timeout: 30_000 });
 	console.log(`[e2e ${ts()}] Sessions workbench ready`);
 
