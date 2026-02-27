@@ -36,6 +36,7 @@ export interface INewSession extends IDisposable {
 	readonly isolationMode: IsolationMode;
 	readonly branch: string | undefined;
 	readonly modelId: string | undefined;
+	readonly modeId: string | undefined;
 	readonly query: string | undefined;
 	readonly attachedContext: IChatRequestVariableEntry[] | undefined;
 	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
@@ -45,6 +46,7 @@ export interface INewSession extends IDisposable {
 	setIsolationMode(mode: IsolationMode): void;
 	setBranch(branch: string | undefined): void;
 	setModelId(modelId: string | undefined): void;
+	setModeId(modeId: string | undefined): void;
 	setQuery(query: string): void;
 	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void;
@@ -65,6 +67,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 	private _isolationMode: IsolationMode = 'worktree';
 	private _branch: string | undefined;
 	private _modelId: string | undefined;
+	private _modeId: string | undefined;
 	private _query: string | undefined;
 	private _attachedContext: IChatRequestVariableEntry[] | undefined;
 
@@ -78,6 +81,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 	get isolationMode(): IsolationMode { return this._isolationMode; }
 	get branch(): string | undefined { return this._branch; }
 	get modelId(): string | undefined { return this._modelId; }
+	get modeId(): string | undefined { return this._modeId; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
@@ -134,6 +138,10 @@ export class LocalNewSession extends Disposable implements INewSession {
 		this._modelId = modelId;
 	}
 
+	setModeId(modeId: string | undefined): void {
+		this._modeId = modeId;
+	}
+
 	setQuery(query: string): void {
 		this._query = query;
 	}
@@ -179,6 +187,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	get isolationMode(): IsolationMode { return 'worktree'; }
 	get branch(): string | undefined { return undefined; }
 	get modelId(): string | undefined { return this._modelId; }
+	get modeId(): string | undefined { return undefined; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
@@ -227,6 +236,10 @@ export class RemoteNewSession extends Disposable implements INewSession {
 
 	setModelId(modelId: string | undefined): void {
 		this._modelId = modelId;
+	}
+
+	setModeId(_modeId: string | undefined): void {
+		// No-op for remote sessions
 	}
 
 	setQuery(query: string): void {

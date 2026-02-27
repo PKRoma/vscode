@@ -76,6 +76,32 @@
 	align-items: center;
 }
 
+/* Mode picker - uses workbench ModePickerActionItem */
+.sessions-chat-mode-picker {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-mode-picker .action-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 16px;
+	padding: 3px 6px;
+	border-radius: 4px;
+	font-size: 12px;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+}
+
+.sessions-chat-mode-picker .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-mode-picker .action-label .codicon {
+	font-size: 12px;
+}
+
 .sessions-chat-model-picker .action-label {
 	display: flex;
 	align-items: center;

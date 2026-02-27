@@ -44,6 +44,8 @@ import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/ch
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
+import { IModePickerDelegate, ModePickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
+import { ChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -97,7 +99,9 @@ class NewChatWidget extends Disposable {
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
 	private readonly _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentLanguageModel', undefined);
+	private readonly _currentMode = observableValue<IChatMode>('currentMode', ChatMode.Agent);
 	private readonly _modelPickerDisposable = this._register(new MutableDisposable());
+	private readonly _modePickerDisposable = this._register(new MutableDisposable());
 
 	// Pending session
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
@@ -120,6 +124,7 @@ class NewChatWidget extends Disposable {
 	private _extensionPickersLeftContainer: HTMLElement | undefined;
 	private _toolbarPickersContainer: HTMLElement | undefined;
 	private _localModelPickerContainer: HTMLElement | undefined;
+	private _localModePickerContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
 	private readonly _folderPicker: FolderPicker;
 	private _folderPickerContainer: HTMLElement | undefined;
@@ -296,6 +301,10 @@ class NewChatWidget extends Disposable {
 		if (currentModel) {
 			session.setModelId(currentModel.identifier);
 		}
+
+		// Set the current mode on the session (for local sessions)
+		const currentMode = this._currentMode.get();
+		session.setModeId(currentMode.id);
 
 		// Open repository for the session's repoUri
 		if (session.repoUri) {
@@ -516,6 +525,10 @@ class NewChatWidget extends Disposable {
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
 
+		// Local mode picker (ModePickerActionItem)
+		this._localModePickerContainer = dom.append(toolbar, dom.$('.sessions-chat-mode-picker'));
+		this._createLocalModePicker(this._localModePickerContainer);
+
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
 		this._cloudModelPicker.setVisible(false);
@@ -577,6 +590,33 @@ class NewChatWidget extends Disposable {
 		);
 		this._modelPickerDisposable.value = modelPicker;
 		modelPicker.render(container);
+	}
+
+	// --- Mode picker ---
+
+	private _createLocalModePicker(container: HTMLElement): void {
+		const delegate: IModePickerDelegate = {
+			currentMode: this._currentMode,
+			sessionResource: () => this._newSession.value?.resource,
+			setMode: (mode: IChatMode) => {
+				this._currentMode.set(mode, undefined);
+				this._newSession.value?.setModeId(mode.id);
+				this._focusEditor();
+			},
+		};
+
+		const pickerOptions: IChatInputPickerOptions = {
+			onlyShowIconsForDefaultActions: observableValue('onlyShowIcons', false),
+			hoverPosition: { hoverPosition: HoverPosition.ABOVE },
+		};
+
+		const action = toAction({ id: 'sessions.modePicker', label: '', enabled: true, run: () => { } });
+
+		const modePicker = this.instantiationService.createInstance(
+			ModePickerActionItem, action, delegate, pickerOptions,
+		);
+		this._modePickerDisposable.value = modePicker;
+		modePicker.render(container);
 	}
 
 	private _initDefaultModel(): void {
@@ -641,9 +681,12 @@ class NewChatWidget extends Disposable {
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
-		// Show local model picker, hide remote
+		// Show local model and mode pickers, hide remote
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = '';
+		}
+		if (this._localModePickerContainer) {
+			this._localModePickerContainer.style.display = '';
 		}
 		this._cloudModelPicker.setVisible(false);
 	}
@@ -660,9 +703,12 @@ class NewChatWidget extends Disposable {
 			this._folderPickerContainer.style.display = 'none';
 		}
 
-		// Show remote model picker, hide local
+		// Show remote model picker, hide local pickers
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = 'none';
+		}
+		if (this._localModePickerContainer) {
+			this._localModePickerContainer.style.display = 'none';
 		}
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);

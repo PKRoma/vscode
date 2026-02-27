@@ -23,6 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IChatModeService, isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
@@ -118,6 +119,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 
@@ -294,14 +296,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(session.target);
+
+		// Resolve mode from session's modeId (falls back to Agent)
+		const resolvedMode = session.modeId ? this.chatModeService.findModeById(session.modeId) : undefined;
+		const modeKind = resolvedMode?.kind ?? ChatModeKind.Agent;
+		const modeIsBuiltin = resolvedMode ? isBuiltinChatMode(resolvedMode) : true;
+		const modeId = resolvedMode ? (modeIsBuiltin ? resolvedMode.id : 'custom') : 'agent';
+
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
 			userSelectedModelId: session.modelId,
 			modeInfo: {
-				kind: ChatModeKind.Agent,
-				isBuiltin: true,
+				kind: modeKind,
+				isBuiltin: modeIsBuiltin,
 				modeInstructions: undefined,
-				modeId: 'agent',
+				modeId: modeId as 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined,
 				applyCodeBlockSuggestionId: undefined,
 			},
 			agentIdSilent: contribution?.type,
