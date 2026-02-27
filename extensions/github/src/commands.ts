@@ -69,15 +69,13 @@ async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePat
 	// After openRepository, the state may not be populated yet — wait for it
 	if (!repository.state.HEAD) {
 		await new Promise<void>(resolve => {
-			let timeoutHandle: ReturnType<typeof setTimeout>;
+			const done = () => { clearTimeout(timeoutHandle); listener.dispose(); resolve(); };
 			const listener = repository!.state.onDidChange(() => {
 				if (repository!.state.HEAD) {
-					clearTimeout(timeoutHandle);
-					listener.dispose();
-					resolve();
+					done();
 				}
 			});
-			timeoutHandle = setTimeout(() => { listener.dispose(); resolve(); }, 10000);
+			const timeoutHandle = setTimeout(done, 10000);
 		});
 	}
 
