@@ -45,18 +45,7 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 	}
 
 	get preferredWidth(): number | undefined {
-		const activeComposite = this.getActivePaneComposite();
-
-		if (!activeComposite) {
-			return undefined;
-		}
-
-		const width = activeComposite.getOptimalWidth();
-		if (typeof width !== 'number') {
-			return undefined;
-		}
-
-		return Math.max(width, 300);
+		return undefined;
 	}
 
 	readonly priority = LayoutPriority.High;
