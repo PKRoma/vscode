@@ -813,6 +813,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 
+		this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.UpArrow && freeformTextarea.selectionStart === 0 && freeformTextarea.selectionEnd === 0 && listItems.length) {
+				e.preventDefault();
+				const lastIndex = listItems.length - 1;
+				updateSelection(lastIndex);
+				listItems[lastIndex].focus();
+			}
+		}));
+
 		freeformContainer.appendChild(freeformTextarea);
 		container.appendChild(freeformContainer);
 		this._freeformTextareas.set(question.id, freeformTextarea);
@@ -828,6 +838,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			if (event.keyCode === KeyCode.DownArrow) {
 				e.preventDefault();
+				if (data.selectedIndex >= listItems.length - 1) {
+					updateSelection(-1);
+					freeformTextarea.focus();
+					return;
+				}
 				newIndex = Math.min(data.selectedIndex + 1, listItems.length - 1);
 			} else if (event.keyCode === KeyCode.UpArrow) {
 				e.preventDefault();
@@ -1008,6 +1023,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Setup auto-resize behavior
 		const autoResize = this.setupTextareaAutoResize(freeformTextarea);
 
+		this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.UpArrow && freeformTextarea.selectionStart === 0 && freeformTextarea.selectionEnd === 0 && listItems.length) {
+				e.preventDefault();
+				focusedIndex = listItems.length - 1;
+				listItems[focusedIndex].focus();
+			}
+		}));
+
 		freeformContainer.appendChild(freeformTextarea);
 		container.appendChild(freeformContainer);
 		this._freeformTextareas.set(question.id, freeformTextarea);
@@ -1023,6 +1047,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			if (event.keyCode === KeyCode.DownArrow) {
 				e.preventDefault();
+				if (focusedIndex >= listItems.length - 1) {
+					freeformTextarea.focus();
+					return;
+				}
 				focusedIndex = Math.min(focusedIndex + 1, listItems.length - 1);
 				listItems[focusedIndex].focus();
 			} else if (event.keyCode === KeyCode.UpArrow) {

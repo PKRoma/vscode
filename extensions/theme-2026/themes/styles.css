@@ -211,6 +211,10 @@
 	border-radius: var(--radius-lg);
 }
 
+.monaco-workbench .interactive-session .chat-question-carousel-container {
+	border-radius: var(--radius-lg);
+}
+
 .monaco-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .monaco-workbench .interactive-session .chat-editing-session .chat-editing-session-container {
 	border-radius: var(--radius-lg) var(--radius-lg) 0 0;
