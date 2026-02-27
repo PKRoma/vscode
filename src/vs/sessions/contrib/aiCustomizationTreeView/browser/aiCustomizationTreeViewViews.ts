@@ -27,7 +27,7 @@ import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, extensionIcon, instructionsIcon, promptIcon, skillIcon, userIcon, workspaceIcon } from './aiCustomizationTreeViewIcons.js';
+import { agentIcon, extensionIcon, instructionsIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -35,7 +35,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 //#region Context Keys
 
@@ -387,18 +387,21 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			[PromptsStorage.local]: localize('workspaceWithCount', "Workspace ({0})", count),
 			[PromptsStorage.user]: localize('userWithCount', "User ({0})", count),
 			[PromptsStorage.extension]: localize('extensionsWithCount', "Extensions ({0})", count),
+			[PromptsStorage.plugin]: localize('pluginsWithCount', "Plugins ({0})", count),
 		};
 
 		const storageIcons: Record<PromptsStorage, ThemeIcon> = {
 			[PromptsStorage.local]: workspaceIcon,
 			[PromptsStorage.user]: userIcon,
 			[PromptsStorage.extension]: extensionIcon,
+			[PromptsStorage.plugin]: pluginIcon,
 		};
 
 		const storageSuffixes: Record<PromptsStorage, string> = {
 			[PromptsStorage.local]: 'workspace',
 			[PromptsStorage.user]: 'user',
 			[PromptsStorage.extension]: 'extensions',
+			[PromptsStorage.plugin]: 'plugins',
 		};
 
 		return {
@@ -487,7 +490,7 @@ export class AICustomizationViewPane extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -502,7 +505,7 @@ export class AICustomizationViewPane extends ViewPane {
 		// Listen to workspace folder changes to refresh tree
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.refresh()));
 		this._register(autorun(reader => {
-			this.activeSessionService.activeSession.read(reader);
+			this.workspaceService.activeProjectRoot.read(reader);
 			this.refresh();
 		}));
 
@@ -557,7 +560,7 @@ export class AICustomizationViewPane extends ViewPane {
 							? localize('fileAriaLabel', "{0}, {1}", element.name, element.description)
 							: element.name;
 					},
-					getWidgetAriaLabel: () => localize('aiCustomizationTree', "AI Customization Items"),
+					getWidgetAriaLabel: () => localize('aiCustomizationTree', "Chat Customization Items"),
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (element: AICustomizationTreeItem) => {

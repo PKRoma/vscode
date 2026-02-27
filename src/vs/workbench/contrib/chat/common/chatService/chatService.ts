@@ -1345,7 +1345,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
@@ -1354,25 +1354,46 @@ export interface IChatService {
 	 */
 	readonly chatModels: IObservable<Iterable<IChatModel>>;
 
+	readonly editingSessions: readonly IChatEditingSession[];
+
 	isEnabled(location: ChatAgentLocation): boolean;
+
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference;
+
+	/**
+	 * Starts a new chat session at the given location.
+	 *
+	 * @returns A reference to the session's model.
+	 */
+	startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference;
 
 	/**
 	 * Get an active session without holding a reference to it.
+	 *
+	 * @returns The session's model, or undefined if no active session exists.
 	 */
 	getSession(sessionResource: URI): IChatModel | undefined;
 
 	/**
 	 * Acquire a reference to an active session.
+	 *
+	 * @returns A reference to the session's model or undefined if there is no active session for the given resource.
 	 */
-	getActiveSessionReference(sessionResource: URI): IChatModelReference | undefined;
+	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined;
 
-	getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined>;
-	getSessionTitle(sessionResource: URI): string | undefined;
-	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModelReference | undefined;
-	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
-	readonly editingSessions: IChatEditingSession[];
+	/**
+	 * Tries to acquire an existing a chat session for the resource. If no session exists, tries to load one for the given
+	 * session resource and location. This may load the session from an external provider.
+	 *
+	 * @returns A reference to the session's model, or undefined if the session could not be loaded
+	 */
+	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
+
+	/**
+	 * Loads a session from exported chat data
+	 */
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference;
+
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
 
 	/**
@@ -1381,15 +1402,14 @@ export interface IChatService {
 	 */
 	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<ChatSendResult>;
 
-	/**
-	 * Sets a custom title for a chat model.
-	 */
-	setTitle(sessionResource: URI, title: string): void;
+	getSessionTitle(sessionResource: URI): string | undefined;
+	setSessionTitle(sessionResource: URI, title: string): void;
+
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionResource: URI): void;
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void;
 	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
@@ -1465,10 +1485,12 @@ export interface IChatSessionStartOptions {
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
 
 export type ChatStopCancellationNoopEvent = {
-	source: 'cancelAction' | 'chatService';
+	source: string;
 	reason: 'noWidget' | 'noViewModel' | 'noPendingRequest' | 'requestAlreadyCanceled' | 'requestIdUnavailable';
 	requestInProgress: 'true' | 'false' | 'unknown';
 	pendingRequests: number;
+	sessionScheme?: string;
+	lastRequestId?: string;
 };
 
 export type ChatStopCancellationNoopClassification = {
@@ -1476,6 +1498,22 @@ export type ChatStopCancellationNoopClassification = {
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The no-op reason when stop cancellation did not dispatch fully.' };
 	requestInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether request-in-progress was true, false, or unknown at no-op time.' };
 	pendingRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of queued pending requests at no-op time when known.'; isMeasurement: true };
+	sessionScheme?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The URI scheme of the session resource (e.g. vscodeLocalChatSession vs remote).' };
+	lastRequestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the last request in the session, for correlating with tool invocations.' };
 	owner: 'roblourens';
 	comment: 'Tracks possible no-op stop cancellation paths.';
+};
+
+export const ChatPendingRequestChangeEventName = 'chat.pendingRequestChange';
+
+export type ChatPendingRequestChangeEvent = {
+	action: 'add' | 'remove' | 'notCancelable';
+	source: string;
+};
+
+export type ChatPendingRequestChangeClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a pending request was added or removed.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The method that triggered the pending request change.' };
+	owner: 'roblourens';
+	comment: 'Tracks pending request lifecycle changes in the chat service.';
 };

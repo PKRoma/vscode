@@ -52,8 +52,9 @@ import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, ha
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
@@ -236,6 +237,7 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -542,13 +544,24 @@ export class ChangesViewPane extends ViewPane {
 				return files > 0;
 			}));
 
+			// Check if a PR exists when the active session changes
+			this.renderDisposables.add(autorun(reader => {
+				const sessionResource = activeSessionResource.read(reader);
+				if (sessionResource) {
+					const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
+					this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata).catch(() => { /* ignore */ });
+				}
+			}));
+
 			this.renderDisposables.add(autorun(reader => {
 				const { isSessionMenu, added, removed } = topLevelStats.read(reader);
 				const sessionResource = activeSessionResource.read(reader);
+				const menuId = isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar;
+
 				reader.store.add(scopedInstantiationService.createInstance(
 					MenuWorkbenchButtonBar,
 					this.actionsContainer!,
-					isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar,
+					menuId,
 					{
 						telemetrySource: 'changesView',
 						menuOptions: isSessionMenu && sessionResource
@@ -562,8 +575,14 @@ export class ChangesViewPane extends ViewPane {
 								);
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'working-set-diff-stats', customLabel: diffStatsLabel };
 							}
-							if (action.id === 'github.createPullRequest') {
+							if (action.id === 'github.createPullRequest' || action.id === 'github.openPullRequest') {
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'flex-grow' };
+							}
+							if (action.id === 'chatEditing.applyToParentRepo') {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
+							if (action.id === 'chatEditing.synchronizeChanges') {
+								return { showIcon: true, showLabel: true, isSecondary: true };
 							}
 							return undefined;
 						}
@@ -656,39 +675,53 @@ export class ChangesViewPane extends ViewPane {
 		if (this.tree) {
 			const tree = this.tree;
 
-			this.renderDisposables.add(tree.onDidOpen(async (e) => {
-				if (!e.element) {
-					return;
-				}
+			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean) => {
+				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
+				const currentIndex = items.indexOf(item);
 
-				// Ignore folder elements - only open files
-				if (!isChangesFileItem(e.element)) {
-					return;
-				}
+				const navigation = {
+					total: items.length,
+					current: currentIndex,
+					navigate: (index: number) => {
+						const target = items[index];
+						if (target) {
+							openFileItem(target, items, false);
+						}
+					}
+				};
 
-				const { uri: modifiedFileUri, originalUri, isDeletion } = e.element;
+				const group = sideBySide ? SIDE_GROUP : MODAL_GROUP;
 
 				if (isDeletion && originalUri) {
-					await this.editorService.openEditor({
+					this.editorService.openEditor({
 						resource: originalUri,
-						options: e.editorOptions
-					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+						options: { modal: { navigation } }
+					}, group);
 					return;
 				}
 
 				if (originalUri) {
-					await this.editorService.openEditor({
+					this.editorService.openEditor({
 						original: { resource: originalUri },
 						modified: { resource: modifiedFileUri },
-						options: e.editorOptions
-					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+						options: { modal: { navigation } }
+					}, group);
 					return;
 				}
 
-				await this.editorService.openEditor({
+				this.editorService.openEditor({
 					resource: modifiedFileUri,
-					options: e.editorOptions
-				}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					options: { modal: { navigation } }
+				}, group);
+			};
+
+			this.renderDisposables.add(tree.onDidOpen((e) => {
+				if (!e.element || !isChangesFileItem(e.element)) {
+					return;
+				}
+
+				const items = combinedEntriesObs.get();
+				openFileItem(e.element, items, e.sideBySide);
 			}));
 		}
 
