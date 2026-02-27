@@ -8,7 +8,7 @@ import { API as GitAPI, RefType, Repository } from './typings/git.js';
 import { publishRepository } from './publish.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links.js';
-import { getOctokit, getOctokitSilent, getOctokitSilentFirst } from './auth.js';
+import { getOctokit, getOctokitSilentFirst } from './auth.js';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
@@ -98,13 +98,8 @@ async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri
 	}
 
 	try {
-		console.log('[GitHub] checkOpenPullRequest: fetching octokit silently...');
-		const octokit = await getOctokitSilent();
-		if (!octokit) {
-			console.log('[GitHub] checkOpenPullRequest: no auth session, skipping');
-			vscode.commands.executeCommand('setContext', 'github.hasOpenPullRequest', false);
-			return;
-		}
+		console.log('[GitHub] checkOpenPullRequest: fetching octokit...');
+		const octokit = await getOctokitSilentFirst();
 		console.log('[GitHub] checkOpenPullRequest: got octokit, listing PRs...');
 		const { data: openPRs } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
