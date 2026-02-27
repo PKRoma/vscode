@@ -1125,15 +1125,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					selectedValue = defaultOption?.value;
 				}
 
-				// For single-select: if freeform is provided, use ONLY freeform (ignore selection)
+				// For single-select: selection takes priority over freeform draft text.
 				const freeformTextarea = this._freeformTextareas.get(question.id);
 				const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
-				if (freeformValue) {
-					// Freeform takes priority - ignore selectedValue
-					return { selectedValue: undefined, freeformValue };
-				}
 				if (selectedValue !== undefined) {
 					return { selectedValue, freeformValue: undefined };
+				}
+				if (freeformValue) {
+					return { selectedValue: undefined, freeformValue };
 				}
 				return undefined;
 			}
