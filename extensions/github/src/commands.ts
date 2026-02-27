@@ -62,6 +62,9 @@ async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePat
 		return undefined;
 	}
 
+	console.log('[GitHub] resolveSessionRepo: remotes:', JSON.stringify(repository.state.remotes.map(r => ({ name: r.name, fetchUrl: r.fetchUrl }))));
+	console.log('[GitHub] resolveSessionRepo: HEAD:', JSON.stringify(repository.state.HEAD));
+
 	const remotes = repository.state.remotes
 		.filter(remote => remote.fetchUrl && getRepositoryFromUrl(remote.fetchUrl));
 
