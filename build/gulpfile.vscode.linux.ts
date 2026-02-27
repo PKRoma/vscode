@@ -262,8 +262,10 @@ function prepareSnapPackage(arch: string) {
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
-			// Possible run-on values https://snapcraft.io/docs/architectures
+			// Possible run-on/build-on values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
+			.pipe(replace('@@BUILD_ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
+			.pipe(replace('@@DEB_ARCHITECTURE@@', arch === 'x64' ? 'x86_64' : 'aarch64'))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
