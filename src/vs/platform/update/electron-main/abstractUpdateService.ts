@@ -253,17 +253,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
-			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
-			if (vetod) {
-				return;
-			}
-
+		const shutdownListener = this.lifecycleMainService.onWillShutdown(() => {
 			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 			this.doQuitAndInstall();
 		});
 
-		return Promise.resolve(undefined);
+		const vetoed = await this.lifecycleMainService.quit(true /* will restart */);
+		this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetoed}`);
+
+		if (vetoed) {
+			shutdownListener.dispose();
+		}
 	}
 
 	private async checkForOverwriteUpdates(explicit: boolean = false): Promise<boolean> {
