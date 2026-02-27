@@ -4,7 +4,7 @@
 	"description": "Provides a mock chat participant for agent sessions testing",
 	"version": "0.0.1",
 	"engines": { "vscode": "*" },
-	"activationEvents": ["onStartupFinished"],
+	"activationEvents": ["*"],
 	"main": "./extension.js",
 	"contributes": {
 		"chatParticipants": [
