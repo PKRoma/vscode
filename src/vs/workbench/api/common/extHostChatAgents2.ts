@@ -511,7 +511,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			label: a.label,
 			description: a.description,
 			prompt: a.prompt,
-			tools: Object.freeze([...a.tools]),
+			tools: a.tools ? Object.freeze([...a.tools]) : undefined,
 			target: a.target,
 			model: a.model,
 		}));

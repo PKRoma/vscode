@@ -32,9 +32,9 @@ declare module 'vscode' {
 		readonly prompt: string;
 
 		/**
-		 * The tools available to the custom agent.
+		 * The tools available to the custom agent, or `undefined` if not specified.
 		 */
-		readonly tools: readonly string[];
+		readonly tools: readonly string[] | undefined;
 
 		/**
 		 * The target of the custom agent (e.g. `'vscode'`, `'github-copilot'`, `'claude'`), or `undefined` if not specified.

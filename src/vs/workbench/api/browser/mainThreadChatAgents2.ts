@@ -180,7 +180,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				label: mode.label.get(),
 				description: mode.description?.get() ?? '',
 				prompt: mode.modeInstructions?.get()?.content ?? '',
-				tools: [...(mode.customTools?.get() ?? [])],
+				tools: mode.customTools?.get() ? [...mode.customTools.get()!] : undefined,
 				target: mode.target.get() === Target.Undefined ? undefined : mode.target.get(),
 				model: mode.model?.get()?.[0] ?? undefined,
 			}));

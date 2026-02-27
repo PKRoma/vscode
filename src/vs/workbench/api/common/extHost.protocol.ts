@@ -1622,7 +1622,7 @@ export interface ICustomAgentDto {
 	label: string;
 	description: string;
 	prompt: string;
-	tools: readonly string[];
+	tools: readonly string[] | undefined;
 	target: string | undefined;
 	model: string | undefined;
 }
