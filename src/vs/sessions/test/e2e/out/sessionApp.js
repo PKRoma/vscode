@@ -58,6 +58,13 @@ async function launchSessionsWindow() {
     }
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sessions-e2e-${Date.now()}-`));
     const mockExtPath = path.join(__dirname, '..', 'extensions', 'mock-chat-provider');
+    // Pre-seed application storage so the welcome/sign-in overlay is skipped
+    const storageDir = path.join(tmpDir, 'User', 'globalStorage');
+    fs.mkdirSync(storageDir, { recursive: true });
+    const storageDb = path.join(storageDir, 'storage.json');
+    fs.writeFileSync(storageDb, JSON.stringify({
+        'workbench.agentsession.welcomeComplete': true,
+    }));
     const args = [
         ...(ROOT.includes('/Resources/app') ? [] : [ROOT]),
         '--skip-release-notes',
