@@ -53,6 +53,10 @@ const ELEMENT_MAP: Record<string, string> = {
 	'the chat input': `${WB} .interactive-input-part .monaco-editor[role="code"]`,
 	'a chat response': `${WB} .interactive-item-container.interactive-response`,
 
+	// Repository picker dropdown (shown when submitting without a repo selected)
+	'the repository picker dropdown': `.context-view .action-widget[aria-label*="Repository Picker"], .context-view .action-widget`,
+	'the repo picker': `.context-view .action-widget[aria-label*="Repository Picker"], .context-view .action-widget`,
+
 	// AI Customization overview sidebar view
 	'the customizations sidebar': `${WB} .part.sidebar [id="workbench.view.aiCustomizationOverview"]`,
 	'the customizations overview': `${WB} .overview-sections`,
@@ -267,6 +271,16 @@ const STEP_HANDLERS: StepHandler[] = [
 			await page.waitForSelector(selector, { state: 'visible', timeout: 10_000 });
 			await page.click(selector);
 			await page.locator(selector).pressSequentially(text);
+		},
+	},
+	// press Enter to submit (presses Enter in the chat input)
+	{
+		pattern: /^press Enter to submit$/i,
+		async execute(page) {
+			const chatInput = `${WB} .interactive-input-part .monaco-editor[role="code"]`;
+			await page.waitForSelector(chatInput, { state: 'visible', timeout: 10_000 });
+			await page.click(chatInput);
+			await page.keyboard.press('Enter');
 		},
 	},
 	// press <key>
