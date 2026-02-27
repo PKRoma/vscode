@@ -1683,7 +1683,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeCustomAgents: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatCustomAgents');
-				return _asExtensionEvent(extHostChatAgents2.onDidChangeCustomAgents)(listener, thisArgs, disposables);
+				return extHostChatAgents2.onDidChangeCustomAgents(listener, thisArgs, disposables);
 			},
 		};
 
