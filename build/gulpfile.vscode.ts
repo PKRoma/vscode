@@ -603,6 +603,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 					.pipe(replace('@@AppxPackageDescription@@', product.win32NameVersion))
 					.pipe(replace('@@ApplicationIdShort@@', product.win32RegValueName))
 					.pipe(replace('@@ApplicationExe@@', product.nameShort + '.exe'))
+					.pipe(replace('@@ProcessorArchitecture@@', arch))
 					.pipe(replace('@@FileExplorerContextMenuID@@', quality === 'stable' ? 'OpenWithCode' : 'OpenWithCodeInsiders'))
 					.pipe(replace('@@FileExplorerContextMenuCLSID@@', (product as { win32ContextMenu?: Record<string, { clsid: string }> }).win32ContextMenu![arch].clsid))
 					.pipe(replace('@@FileExplorerContextMenuDLL@@', `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`))
