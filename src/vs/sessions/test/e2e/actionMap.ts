@@ -50,7 +50,7 @@ const ELEMENT_MAP: Record<string, string> = {
 	'the panel': `${WB} .part.panel`,
 
 	// Chat
-	'the chat input': `${WB} .interactive-input-part .monaco-editor[role="code"]`,
+	'the chat input': `${WB} .interactive-input-part .monaco-editor[role="code"], ${WB} .chat-input-part .monaco-editor[role="code"], ${WB} .interactive-input-and-side-toolbar .monaco-editor`,
 	'a chat response': `${WB} .interactive-item-container.interactive-response`,
 
 	// Repository picker dropdown (shown when submitting without a repo selected)
