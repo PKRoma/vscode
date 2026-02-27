@@ -52,10 +52,7 @@ async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePat
 
 	// The git extension may not have discovered the worktree yet, try opening it explicitly
 	if (!repository) {
-		console.log('[GitHub] resolveSessionRepo: getRepository returned null for', JSON.stringify(worktreeUri));
-		console.log('[GitHub] resolveSessionRepo: known repositories:', gitAPI.repositories.map(r => r.rootUri.toString()));
 		repository = await gitAPI.openRepository(worktreeUri);
-		console.log('[GitHub] resolveSessionRepo: openRepository result:', repository ? repository.rootUri.toString() : 'null');
 	}
 
 	if (!repository) {
