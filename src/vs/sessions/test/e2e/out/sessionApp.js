@@ -124,9 +124,8 @@ async function launchSessionsWindow() {
     // Pick the last opened window (the sessions window is always the newest)
     page = openedWindows[openedWindows.length - 1];
     console.log(`[e2e] Using window ${openedWindows.indexOf(page) + 1}/${openedWindows.length}`);
-    // Wait for it to be interactive
-    await page.waitForLoadState('domcontentloaded');
-    console.log('[e2e] DOM content loaded');
+    // Give the renderer a moment to finish painting, then set up mocks
+    await page.waitForTimeout(1_000);
     // Intercept Copilot API calls so the token manager sees a valid session
     // without needing real GitHub credentials.
     await mockCopilotApiRoutes(page);
@@ -138,7 +137,7 @@ async function launchSessionsWindow() {
     });
     // Wait for the sessions workbench to render
     console.log('[e2e] Waiting for .agent-sessions-workbench…');
-    await page.waitForSelector('.agent-sessions-workbench', { state: 'attached', timeout: 30_000 });
+    await page.waitForSelector('.agent-sessions-workbench', { state: 'visible', timeout: 30_000 });
     console.log('[e2e] Sessions workbench ready');
     return {
         page,
