@@ -43,7 +43,7 @@ const ELEMENT_MAP = {
     'the auxiliary bar': `${WB} .part.auxiliarybar`,
     'the panel': `${WB} .part.panel`,
     // Chat
-    'the chat input': `${WB} .interactive-input-part .monaco-editor[role="code"], ${WB} .chat-input-part .monaco-editor[role="code"], ${WB} .interactive-input-and-side-toolbar .monaco-editor`,
+    'the chat input': `${WB} .sessions-chat-editor .monaco-editor[role="code"], ${WB} .interactive-input-part .monaco-editor[role="code"], ${WB} .chat-input-part .monaco-editor[role="code"], ${WB} .interactive-input-and-side-toolbar .monaco-editor`,
     'a chat response': `${WB} .interactive-item-container.interactive-response`,
     // Repository picker dropdown (shown when submitting without a repo selected)
     'the repository picker dropdown': `.context-view .action-widget[aria-label*="Repository Picker"], .context-view .action-widget`,
@@ -216,7 +216,7 @@ const STEP_HANDLERS = [
     {
         pattern: /^press Enter to submit$/i,
         async execute(page) {
-            const chatInput = `${WB} .interactive-input-part .monaco-editor[role="code"]`;
+            const chatInput = `${WB} .sessions-chat-editor .monaco-editor[role="code"], ${WB} .interactive-input-part .monaco-editor[role="code"]`;
             await page.waitForSelector(chatInput, { state: 'visible', timeout: 10_000 });
             await page.click(chatInput);
             await page.keyboard.press('Enter');
@@ -229,17 +229,7 @@ const STEP_HANDLERS = [
             await page.keyboard.press(match[1]);
         },
     },
-    // ------ Click ------
-    // click <element>
-    {
-        pattern: /^click (.+)$/i,
-        async execute(page, match) {
-            const selector = resolveSelector(match[1]);
-            await page.waitForSelector(selector, { state: 'visible', timeout: 10_000 });
-            await page.click(selector);
-        },
-    },
-    // ------ Click by text (fallback for dynamic buttons / dropdown items) ------
+    // ------ Click by text (must come before generic click to avoid mismatches) ------
     // click button "<text>"
     {
         pattern: /^click button "(.+?)"$/i,
@@ -262,6 +252,16 @@ const STEP_HANDLERS = [
         async execute(page, match, ctx) {
             const text = ctx.interpolate(match[1]);
             await page.getByRole('link', { name: text }).first().click({ timeout: 10_000 });
+        },
+    },
+    // ------ Click by element name ------
+    // click <element>
+    {
+        pattern: /^click (.+)$/i,
+        async execute(page, match) {
+            const selector = resolveSelector(match[1]);
+            await page.waitForSelector(selector, { state: 'visible', timeout: 10_000 });
+            await page.click(selector);
         },
     },
     // select "<text>" in the quick input
