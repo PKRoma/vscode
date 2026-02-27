@@ -100,24 +100,31 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 	});
 
 	// Wait a moment for additional windows (sessions may open as 2nd window)
-	await page.waitForTimeout(3_000);
+	await page.waitForTimeout(5_000);
 
 	// If multiple windows, find the sessions one
 	const allWindows = electron.windows();
 	console.log(`[e2e] Total windows: ${allWindows.length}`);
 	for (const [i, win] of allWindows.entries()) {
-		console.log(`[e2e]   window[${i}]: ${win.url()}`);
+		console.log(`[e2e]   window[${i}]: "${win.url()}"`);
 	}
 
+	// Use the window with .agent-sessions-workbench — fall back to first window
 	for (const win of allWindows) {
-		if (win.url().includes('sessions')) {
-			page = win;
-			await page.waitForLoadState('domcontentloaded');
-			await mockCopilotApiRoutes(page);
-			console.log(`[e2e] Switched to sessions window: ${page.url()}`);
-			break;
+		const url = win.url();
+		if (url.includes('sessions') || url.includes('workbench')) {
+			const count = await win.locator('.agent-sessions-workbench').count().catch(() => 0);
+			console.log(`[e2e]   window ${url} has .agent-sessions-workbench: ${count}`);
+			if (count > 0) {
+				page = win;
+				console.log(`[e2e] Switched to sessions window: ${page.url()}`);
+				break;
+			}
 		}
 	}
+
+	// If no dedicated sessions window found, use first window
+	console.log(`[e2e] Using window: "${page.url()}"`);
 
 	// Check what's on the page
 	const title = await page.title();
