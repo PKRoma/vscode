@@ -73,6 +73,7 @@ async function launchSessionsWindow() {
         `--extensionDevelopmentPath=${mockExtPath}`,
         '--enable-smoke-test-driver',
         '--sessions',
+        '--skip-sessions-welcome',
         // Disable built-in auth and the real Copilot so our mock handles everything
         '--disable-extension=vscode.github',
         '--disable-extension=vscode.github-authentication',
