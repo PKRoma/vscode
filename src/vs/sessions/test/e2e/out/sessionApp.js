@@ -58,13 +58,9 @@ async function launchSessionsWindow() {
     }
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sessions-e2e-${Date.now()}-`));
     const mockExtPath = path.join(__dirname, '..', 'extensions', 'mock-chat-provider');
-    // Pre-seed application storage so the welcome/sign-in overlay is skipped
-    const storageDir = path.join(tmpDir, 'User', 'globalStorage');
-    fs.mkdirSync(storageDir, { recursive: true });
-    const storageDb = path.join(storageDir, 'storage.json');
-    fs.writeFileSync(storageDb, JSON.stringify({
-        'workbench.agentsession.welcomeComplete': true,
-    }));
+    // Pre-seed the application SQLite storage so the welcome overlay is skipped.
+    // VS Code stores application-scoped keys in User/globalStorage/state.vscdb.
+    await seedWelcomeStorage(tmpDir);
     const args = [
         ...(ROOT.includes('/Resources/app') ? [] : [ROOT]),
         '--skip-release-notes',
@@ -158,5 +154,34 @@ function getDevElectronPath() {
         default:
             throw new Error(`Unsupported platform: ${process.platform}`);
     }
+}
+/**
+ * Pre-seed the VS Code application SQLite storage so the sessions welcome
+ * overlay sees `welcomeComplete = true` and skips sign-in on first launch.
+ */
+async function seedWelcomeStorage(userDataDir) {
+    const storageDir = path.join(userDataDir, 'User', 'globalStorage');
+    fs.mkdirSync(storageDir, { recursive: true });
+    const dbPath = path.join(storageDir, 'state.vscdb');
+    // Use VS Code's bundled @vscode/sqlite3
+    const sqlite3 = require(path.join(ROOT, 'node_modules', '@vscode', 'sqlite3'));
+    await new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath, (err) => {
+            if (err) {
+                return reject(err);
+            }
+            db.serialize(() => {
+                db.run(`CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)`, (e) => { if (e) {
+                    return reject(e);
+                } });
+                db.run(`INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)`, ['workbench.agentsession.welcomeComplete', 'true'], (e) => {
+                    if (e) {
+                        return reject(e);
+                    }
+                    db.close((closeErr) => closeErr ? reject(closeErr) : resolve());
+                });
+            });
+        });
+    });
 }
 //# sourceMappingURL=sessionApp.js.map
