@@ -6,6 +6,14 @@ import path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as os from 'os';
+import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
+
+// Fast path: if nothing changed since last successful install, skip everything.
+// This makes `npm i` near-instant when dependencies haven't changed.
+if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
+	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
+	process.exit(0);
+}
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version

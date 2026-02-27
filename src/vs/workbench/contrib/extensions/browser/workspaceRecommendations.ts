@@ -25,6 +25,9 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	private _recommendations: ExtensionRecommendation[] = [];
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
 
+	private _stronglyRecommended: string[] = [];
+	get stronglyRecommended(): ReadonlyArray<string> { return this._stronglyRecommended; }
+
 	private _onDidChangeRecommendations = this._register(new Emitter<void>());
 	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
 
@@ -110,6 +113,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		}
 
 		this._recommendations = [];
+		this._stronglyRecommended = [];
 		this._ignoredRecommendations = [];
 
 		for (const extensionsConfig of extensionsConfigs) {
@@ -128,6 +132,20 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 							reason: {
 								reasonId: ExtensionRecommendationReason.Workspace,
 								reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
+							}
+						});
+					}
+				}
+			}
+			if (extensionsConfig.stronglyRecommended) {
+				for (const extensionId of extensionsConfig.stronglyRecommended) {
+					if (invalidRecommendations.indexOf(extensionId) === -1) {
+						this._stronglyRecommended.push(extensionId);
+						this._recommendations.push({
+							extension: extensionId,
+							reason: {
+								reasonId: ExtensionRecommendationReason.Workspace,
+								reasonText: localize('stronglyRecommendedExtension', "This extension is strongly recommended by users of the current workspace.")
 							}
 						});
 					}
@@ -152,7 +170,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		const invalidExtensions: string[] = [];
 		let message = '';
 
-		const allRecommendations = distinct(contents.flatMap(({ recommendations }) => recommendations || []));
+		const allRecommendations = distinct(contents.flatMap(({ recommendations, stronglyRecommended }) => [...(recommendations || []), ...(stronglyRecommended || [])]));
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		for (const extensionId of allRecommendations) {
 			if (regEx.test(extensionId)) {
