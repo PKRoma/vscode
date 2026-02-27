@@ -59,7 +59,7 @@ async function launchSessionsWindow() {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sessions-e2e-'));
     const mockExtPath = path.join(__dirname, '..', 'extensions', 'mock-chat-provider');
     const args = [
-        ROOT,
+        ...(ROOT.includes('/Resources/app') ? [] : [ROOT]),
         '--skip-release-notes',
         '--skip-welcome',
         '--disable-telemetry',
@@ -69,6 +69,7 @@ async function launchSessionsWindow() {
         `--user-data-dir=${tmpDir}`,
         `--extensionDevelopmentPath=${mockExtPath}`,
         '--enable-smoke-test-driver',
+        '--new-window',
     ];
     const electron = await playwright._electron.launch({
         executablePath: electronPath,

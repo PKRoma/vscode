@@ -35,7 +35,7 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 	const mockExtPath = path.join(__dirname, '..', 'extensions', 'mock-chat-provider');
 
 	const args = [
-		ROOT,
+		...(ROOT.includes('/Resources/app') ? [] : [ROOT]),
 		'--skip-release-notes',
 		'--skip-welcome',
 		'--disable-telemetry',
@@ -45,6 +45,7 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 		`--user-data-dir=${tmpDir}`,
 		`--extensionDevelopmentPath=${mockExtPath}`,
 		'--enable-smoke-test-driver',
+		'--new-window',
 	];
 
 	const electron = await playwright._electron.launch({
