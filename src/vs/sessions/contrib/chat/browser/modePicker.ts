@@ -86,7 +86,8 @@ export class ModePicker extends Disposable {
 	}
 
 	private _getAvailableModes(): IChatMode[] {
-		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(AgentSessionProviders.Background) ?? Target.Undefined;
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(AgentSessionProviders.Background);
+		const effectiveTarget = customAgentTarget && customAgentTarget !== Target.Undefined ? customAgentTarget : Target.GitHubCopilot;
 		const modes = this.chatModeService.getModes();
 
 		// Always include the default Agent mode
@@ -95,7 +96,7 @@ export class ModePicker extends Disposable {
 		// Add custom modes matching the target
 		for (const mode of modes.custom) {
 			const target = mode.target.get();
-			if (target === customAgentTarget || target === Target.Undefined) {
+			if (target === effectiveTarget || target === Target.Undefined) {
 				result.push(mode);
 			}
 		}
