@@ -72,19 +72,42 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 
 	console.log('[e2e] Electron process launched');
 
-	// Log all windows as they appear
+	// Collect windows as they open
+	const openedWindows: playwright.Page[] = [...electron.windows()];
 	electron.on('window', (win: playwright.Page) => {
-		console.log(`[e2e] New window detected: ${win.url()}`);
+		console.log(`[e2e] New window opened: ${win.url()}`);
+		openedWindows.push(win);
 	});
 
-	// Wait for the first window
-	let page = electron.windows()[0];
-	if (!page) {
-		console.log('[e2e] No windows yet, waiting for first window…');
-		page = await electron.waitForEvent('window', { timeout: 0 });
+	// Wait for the first window to appear
+	if (openedWindows.length === 0) {
+		console.log('[e2e] Waiting for first window…');
+		const w = await electron.waitForEvent('window', { timeout: 0 });
+		openedWindows.push(w);
 	}
-	console.log(`[e2e] First window URL: ${page.url()}`);
+	console.log(`[e2e] First window available`);
 
+	// With --sessions flag, VS Code opens a sessions window (may be 1st or 2nd window).
+	// Wait up to 15s for a second window; if one never comes, use the first.
+	let page: playwright.Page;
+	if (openedWindows.length < 2) {
+		console.log('[e2e] Waiting up to 15s for sessions window…');
+		const maybeSecond = await Promise.race([
+			electron.waitForEvent('window', { timeout: 15_000 }).then(w => { openedWindows.push(w); return w; }),
+			new Promise<null>(resolve => setTimeout(() => resolve(null), 15_000)),
+		]).catch(() => null);
+		if (maybeSecond) {
+			console.log(`[e2e] Second window opened`);
+		} else {
+			console.log(`[e2e] No second window appeared, using first window`);
+		}
+	}
+
+	// Pick the last opened window (the sessions window is always the newest)
+	page = openedWindows[openedWindows.length - 1];
+	console.log(`[e2e] Using window ${openedWindows.indexOf(page) + 1}/${openedWindows.length}`);
+
+	// Wait for it to be interactive
 	await page.waitForLoadState('domcontentloaded');
 	console.log('[e2e] DOM content loaded');
 
@@ -92,47 +115,17 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 	// without needing real GitHub credentials.
 	await mockCopilotApiRoutes(page);
 
-	// Log console output from the page
+	// Log console errors from the page
 	page.on('console', msg => {
 		if (msg.type() === 'error') {
 			console.log(`[e2e][console.error] ${msg.text()}`);
 		}
 	});
 
-	// Wait a moment for additional windows (sessions may open as 2nd window)
-	await page.waitForTimeout(5_000);
-
-	// If multiple windows, find the sessions one
-	const allWindows = electron.windows();
-	console.log(`[e2e] Total windows: ${allWindows.length}`);
-	for (const [i, win] of allWindows.entries()) {
-		console.log(`[e2e]   window[${i}]: "${win.url()}"`);
-	}
-
-	// Use the window with .agent-sessions-workbench — fall back to first window
-	for (const win of allWindows) {
-		const url = win.url();
-		if (url.includes('sessions') || url.includes('workbench')) {
-			const count = await win.locator('.agent-sessions-workbench').count().catch(() => 0);
-			console.log(`[e2e]   window ${url} has .agent-sessions-workbench: ${count}`);
-			if (count > 0) {
-				page = win;
-				console.log(`[e2e] Switched to sessions window: ${page.url()}`);
-				break;
-			}
-		}
-	}
-
-	// If no dedicated sessions window found, use first window
-	console.log(`[e2e] Using window: "${page.url()}"`);
-
-	// Check what's on the page
-	const title = await page.title();
-	console.log(`[e2e] Page title: "${title}"`);
-	const hasSessionsWB = await page.locator('.agent-sessions-workbench').count();
-	const hasMonacoWB = await page.locator('.monaco-workbench').count();
-	const hasWelcome = await page.locator('.sessions-welcome-overlay').count();
-	console.log(`[e2e] .agent-sessions-workbench: ${hasSessionsWB}, .monaco-workbench: ${hasMonacoWB}, .sessions-welcome-overlay: ${hasWelcome}`);
+	// Wait for the sessions workbench to render
+	console.log('[e2e] Waiting for .agent-sessions-workbench…');
+	await page.waitForSelector('.agent-sessions-workbench', { state: 'attached', timeout: 30_000 });
+	console.log('[e2e] Sessions workbench ready');
 
 	return {
 		page,
