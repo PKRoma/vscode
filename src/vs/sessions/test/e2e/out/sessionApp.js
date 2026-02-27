@@ -77,6 +77,8 @@ async function launchSessionsWindow() {
         `--extensionDevelopmentPath=${mockExtPath}`,
         '--enable-smoke-test-driver',
         '--sessions',
+        '--disable-extension=vscode.github',
+        '--disable-extension=vscode.github-authentication',
     ];
     const electron = await playwright._electron.launch({
         executablePath: electronPath,
