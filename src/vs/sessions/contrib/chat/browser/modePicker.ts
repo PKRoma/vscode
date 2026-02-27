@@ -15,6 +15,20 @@ import { ChatMode, IChatMode, IChatModeService } from '../../../../workbench/con
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+
+const CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.picker.customagents';
+
+interface IModePickerItem {
+	readonly kind: 'mode';
+	readonly mode: IChatMode;
+}
+
+interface IConfigurePickerItem {
+	readonly kind: 'configure';
+}
+
+type ModePickerItem = IModePickerItem | IConfigurePickerItem;
 
 /**
  * A self-contained widget for selecting a chat mode (Agent, custom agents)
@@ -40,6 +54,7 @@ export class ModePicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 	}
@@ -117,15 +132,19 @@ export class ModePicker extends Disposable {
 		const items = this._buildItems(modes);
 
 		const triggerElement = this._triggerElement;
-		const delegate: IActionListDelegate<IChatMode> = {
+		const delegate: IActionListDelegate<ModePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				this._selectMode(item);
+				if (item.kind === 'mode') {
+					this._selectMode(item.mode);
+				} else {
+					this.commandService.executeCommand(CONFIGURE_AGENTS_ACTION_ID);
+				}
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		this.actionWidgetService.show<IChatMode>(
+		this.actionWidgetService.show<ModePickerItem>(
 			'localModePicker',
 			false,
 			items,
@@ -140,13 +159,41 @@ export class ModePicker extends Disposable {
 		);
 	}
 
-	private _buildItems(modes: IChatMode[]): IActionListItem<IChatMode>[] {
-		return modes.map(mode => ({
+	private _buildItems(modes: IChatMode[]): IActionListItem<ModePickerItem>[] {
+		const items: IActionListItem<ModePickerItem>[] = [];
+
+		// Default Agent mode
+		const agentMode = modes[0];
+		items.push({
 			kind: ActionListItemKind.Action,
-			label: mode.label.get(),
-			group: { title: '', icon: this._selectedMode.id === mode.id ? Codicon.check : Codicon.blank },
-			item: mode,
-		}));
+			label: agentMode.label.get(),
+			group: { title: '', icon: this._selectedMode.id === agentMode.id ? Codicon.check : Codicon.blank },
+			item: { kind: 'mode', mode: agentMode },
+		});
+
+		// Custom modes (with separator if any exist)
+		const customModes = modes.slice(1);
+		if (customModes.length > 0) {
+			items.push({ kind: ActionListItemKind.Separator, label: '' });
+			for (const mode of customModes) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: mode.label.get(),
+					group: { title: '', icon: this._selectedMode.id === mode.id ? Codicon.check : Codicon.blank },
+					item: { kind: 'mode', mode },
+				});
+			}
+		}
+
+		// Configure Custom Agents action
+		items.push({ kind: ActionListItemKind.Separator, label: '' });
+		items.push({
+			kind: ActionListItemKind.Action,
+			label: localize('configureCustomAgents', "Configure Custom Agents..."),
+			item: { kind: 'configure' },
+		});
+
+		return items;
 	}
 
 	private _selectMode(mode: IChatMode): void {
