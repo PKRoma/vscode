@@ -546,6 +546,9 @@ export class ChangesViewPane extends ViewPane {
 				return files > 0;
 			}));
 
+			// Cache the GitHub auth token for use in menu args
+			let cachedGitHubToken: string | undefined;
+
 			// Check if a PR exists when the active session changes
 			let checkPRRunId = 0;
 			this.renderDisposables.add(autorun(reader => {
@@ -557,7 +560,8 @@ export class ChangesViewPane extends ViewPane {
 						if (currentRunId !== checkPRRunId || sessions.length === 0) {
 							return;
 						}
-						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata, sessions[0].accessToken).catch(() => { /* ignore */ });
+						cachedGitHubToken = sessions[0].accessToken;
+						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata, cachedGitHubToken).catch(() => { /* ignore */ });
 					}).catch(() => { /* ignore */ });
 				}
 			}));
@@ -574,7 +578,7 @@ export class ChangesViewPane extends ViewPane {
 					{
 						telemetrySource: 'changesView',
 						menuOptions: isSessionMenu && sessionResource
-							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
+							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata, cachedGitHubToken] }
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
 							if (action.id === 'chatEditing.viewChanges' || action.id === 'chatEditing.viewPreviousEdits' || action.id === 'chatEditing.viewAllSessionChanges' || action.id === 'chat.openSessionWorktreeInVSCode') {
