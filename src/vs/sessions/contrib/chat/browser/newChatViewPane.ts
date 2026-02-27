@@ -40,7 +40,8 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
-import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
@@ -156,6 +157,7 @@ class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
@@ -598,6 +600,7 @@ class NewChatWidget extends Disposable {
 		const delegate: IModePickerDelegate = {
 			currentMode: this._currentMode,
 			sessionResource: () => this._newSession.value?.resource,
+			customAgentTarget: () => this.chatSessionsService.getCustomAgentTargetForSessionType(AgentSessionProviders.Background) ?? Target.Undefined,
 			setMode: (mode: IChatMode) => {
 				this._currentMode.set(mode, undefined);
 				this._newSession.value?.setModeId(mode.id);
