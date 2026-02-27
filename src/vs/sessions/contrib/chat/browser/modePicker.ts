@@ -190,6 +190,7 @@ export class ModePicker extends Disposable {
 		items.push({
 			kind: ActionListItemKind.Action,
 			label: localize('configureCustomAgents', "Configure Custom Agents..."),
+			group: { title: '', icon: Codicon.blank },
 			item: { kind: 'configure' },
 		});
 
