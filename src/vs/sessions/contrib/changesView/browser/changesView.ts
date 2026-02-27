@@ -55,6 +55,7 @@ import { IActivityService, NumberBadge } from '../../../../workbench/services/ac
 import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
@@ -238,6 +239,7 @@ export class ChangesViewPane extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -549,7 +551,12 @@ export class ChangesViewPane extends ViewPane {
 				const sessionResource = activeSessionResource.read(reader);
 				if (sessionResource) {
 					const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
-					this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata).catch(() => { /* ignore */ });
+					this.authenticationService.getSessions('github').then(sessions => {
+						const token = sessions.length > 0 ? sessions[0].accessToken : undefined;
+						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata, token).catch(() => { /* ignore */ });
+					}).catch(() => {
+						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata).catch(() => { /* ignore */ });
+					});
 				}
 			}));
 

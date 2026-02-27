@@ -8,7 +8,7 @@ import { API as GitAPI, RefType, Repository } from './typings/git.js';
 import { publishRepository } from './publish.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links.js';
-import { getOctokit, getOctokitSilentFirst } from './auth.js';
+import { getOctokit, getOctokitFromToken, getOctokitSilentFirst } from './auth.js';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
@@ -90,7 +90,7 @@ function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePath?: st
 	return { repository, remoteInfo, gitRemote: { name: gitRemote.name, fetchUrl: gitRemote.fetchUrl! }, head: head as ResolvedSessionRepo['head'] };
 }
 
-async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined): Promise<void> {
+async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined, accessToken: string | undefined): Promise<void> {
 	const resolved = resolveSessionRepo(gitAPI, sessionMetadata, false);
 	if (!resolved) {
 		vscode.commands.executeCommand('setContext', 'github.hasOpenPullRequest', false);
@@ -98,9 +98,9 @@ async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri
 	}
 
 	try {
-		console.log('[GitHub] checkOpenPullRequest: fetching octokit...');
-		const octokit = await getOctokitSilentFirst();
-		console.log('[GitHub] checkOpenPullRequest: got octokit, listing PRs...');
+		const octokit = accessToken
+			? await getOctokitFromToken(accessToken)
+			: await getOctokitSilentFirst();
 		const { data: openPRs } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
 			repo: resolved.remoteInfo.repo,
@@ -148,16 +148,16 @@ async function createPullRequest(gitAPI: GitAPI, sessionResource: vscode.Uri | u
 	vscode.env.openExternal(vscode.Uri.parse(prUrl));
 }
 
-async function openPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined): Promise<void> {
+async function openPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined, accessToken: string | undefined): Promise<void> {
 	const resolved = resolveSessionRepo(gitAPI, sessionMetadata, true);
 	if (!resolved) {
 		return;
 	}
 
 	try {
-		console.log('[GitHub] openPullRequest: fetching octokit...');
-		const octokit = await getOctokitSilentFirst();
-		console.log('[GitHub] openPullRequest: got octokit, listing PRs...');
+		const octokit = accessToken
+			? await getOctokitFromToken(accessToken)
+			: await getOctokitSilentFirst();
 		const { data: pullRequests } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
 			repo: resolved.remoteInfo.repo,
@@ -263,12 +263,12 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 		return createPullRequest(gitAPI, sessionResource, sessionMetadata);
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.openPullRequest', async (sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined) => {
-		return openPullRequest(gitAPI, sessionResource, sessionMetadata);
+	disposables.add(vscode.commands.registerCommand('github.openPullRequest', async (sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined, accessToken: string | undefined) => {
+		return openPullRequest(gitAPI, sessionResource, sessionMetadata, accessToken);
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.checkOpenPullRequest', async (sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined) => {
-		return checkOpenPullRequest(gitAPI, sessionResource, sessionMetadata);
+	disposables.add(vscode.commands.registerCommand('github.checkOpenPullRequest', async (sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined, accessToken: string | undefined) => {
+		return checkOpenPullRequest(gitAPI, sessionResource, sessionMetadata, accessToken);
 	}));
 
 	return disposables;

@@ -34,22 +34,8 @@ export async function getSession(): Promise<AuthenticationSession> {
 	return await authentication.getSession('github', scopes, { createIfNone: true });
 }
 
-export async function getOctokitSilentFirst(): Promise<Octokit> {
-	console.log('[GitHub Auth] getOctokitSilentFirst: requesting scopes:', JSON.stringify(scopes));
-
-	// Check if any GitHub session exists at all (regardless of scopes)
-	const anySessions = await authentication.getSession('github', [], { silent: true });
-	console.log('[GitHub Auth] getOctokitSilentFirst: session with empty scopes:', anySessions ? `found (scopes: ${JSON.stringify(anySessions.scopes)})` : 'no session');
-
-	const silentSession = await authentication.getSession('github', scopes, { silent: true });
-	console.log('[GitHub Auth] getOctokitSilentFirst: silent auth with full scopes:', silentSession ? `found (scopes: ${JSON.stringify(silentSession.scopes)})` : 'no session');
-
-	const session = silentSession
-		?? await (console.log('[GitHub Auth] getOctokitSilentFirst: falling back to createIfNone...'), authentication.getSession('github', scopes, { createIfNone: true }));
-
-	const token = session.accessToken;
+export async function getOctokitFromToken(token: string): Promise<Octokit> {
 	const agent = getAgent();
-
 	const { Octokit } = await import('@octokit/rest');
 
 	return new Octokit({
@@ -57,6 +43,14 @@ export async function getOctokitSilentFirst(): Promise<Octokit> {
 		userAgent: 'GitHub VSCode',
 		auth: `token ${token}`
 	});
+}
+
+export async function getOctokitSilentFirst(): Promise<Octokit> {
+	const silentSession = await authentication.getSession('github', scopes, { silent: true });
+	const session = silentSession
+		?? await authentication.getSession('github', scopes, { createIfNone: true });
+
+	return getOctokitFromToken(session.accessToken);
 }
 
 let _octokit: Promise<Octokit> | undefined;
