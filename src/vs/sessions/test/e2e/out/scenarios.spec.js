@@ -58,10 +58,17 @@ async function run() {
         console.log('Window launched.\n');
         for (const scenario of scenarios) {
             console.log(`▶ Scenario: ${scenario.name}`);
+            if (scenario.preconditions.length > 0) {
+                console.log('  Preconditions:');
+                for (const p of scenario.preconditions) {
+                    console.log(`    • ${p}`);
+                }
+            }
+            const ctx = new actionMap_1.StepContext();
             for (const [i, step] of scenario.steps.entries()) {
-                const label = `  step ${i + 1}: ${step}`;
+                const label = `step ${i + 1}: ${step}`;
                 try {
-                    await (0, actionMap_1.executeStep)(app.page, step);
+                    await (0, actionMap_1.executeStep)(app.page, step, ctx);
                     console.log(`  ✅ ${label}`);
                     passed++;
                 }

@@ -9,6 +9,7 @@ import * as path from 'path';
 export interface Scenario {
 	readonly name: string;
 	readonly description: string;
+	readonly preconditions: string[];
 	readonly steps: string[];
 	readonly filePath: string;
 }
@@ -17,10 +18,15 @@ export interface Scenario {
  * Parse a `.scenario.md` file into a structured {@link Scenario}.
  *
  * Expected format:
- * ```
+ * ```markdown
  * # Scenario Name
  *
- * Optional description paragraph(s).
+ * Description paragraph(s).
+ *
+ * ## Preconditions
+ *
+ * - precondition 1
+ * - precondition 2
  *
  * ## Steps
  *
@@ -34,8 +40,9 @@ export function parseScenario(filePath: string): Scenario {
 
 	let name = path.basename(filePath, '.scenario.md');
 	const descriptionLines: string[] = [];
+	const preconditions: string[] = [];
 	const steps: string[] = [];
-	let section: 'header' | 'description' | 'steps' = 'header';
+	let section: 'header' | 'description' | 'preconditions' | 'steps' = 'header';
 
 	for (const line of lines) {
 		const trimmed = line.trim();
@@ -46,34 +53,52 @@ export function parseScenario(filePath: string): Scenario {
 			continue;
 		}
 
-		if (trimmed.toLowerCase() === '## steps') {
+		if (/^## preconditions?$/i.test(trimmed)) {
+			section = 'preconditions';
+			continue;
+		}
+
+		if (/^## steps?$/i.test(trimmed)) {
 			section = 'steps';
 			continue;
 		}
 
-		if (section === 'description' && trimmed.length > 0 && !trimmed.startsWith('#')) {
+		// Skip other headings
+		if (trimmed.startsWith('#')) {
+			continue;
+		}
+
+		const listItem = trimmed.match(/^(?:-|\d+\.)\s+(.*)/);
+
+		if (section === 'description' && trimmed.length > 0) {
 			descriptionLines.push(trimmed);
 		}
 
-		if (section === 'steps' && /^-\s+/.test(trimmed)) {
-			steps.push(trimmed.replace(/^-\s+/, '').trim());
+		if (section === 'preconditions' && listItem) {
+			preconditions.push(listItem[1].trim());
+		}
+
+		if (section === 'steps' && listItem) {
+			steps.push(listItem[1].trim());
 		}
 	}
 
 	return {
 		name,
 		description: descriptionLines.join(' '),
+		preconditions,
 		steps,
 		filePath,
 	};
 }
 
 /**
- * Discover all `.scenario.md` files under a directory.
+ * Discover all `.scenario.md` files under a directory, sorted by filename.
  */
 export function discoverScenarios(dir: string): Scenario[] {
 	const entries = fs.readdirSync(dir);
 	return entries
 		.filter(f => f.endsWith('.scenario.md'))
+		.sort()
 		.map(f => parseScenario(path.join(dir, f)));
 }

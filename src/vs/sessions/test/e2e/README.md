@@ -61,22 +61,62 @@ Description of what this tests.
 
 ### Supported Steps
 
-| Pattern                          | Action                                    |
-|----------------------------------|-------------------------------------------|
-| `wait for <element> to load`    | Wait for element to be visible (30s)      |
-| `verify <element> is visible`   | Assert element is visible (10s)           |
-| `verify <element> is not visible`| Assert element is hidden (10s)           |
-| `type "<text>" in <element>`    | Focus element and type text sequentially  |
-| `click <element>`               | Click an element                          |
-| `press <key>`                   | Press a keyboard key                      |
-| `verify a chat response appears`| Wait for a chat response element          |
-| `wait <N> seconds`              | Explicit wait                             |
+| Pattern | Action |
+|---------|--------|
+| `wait for <element> to load` | Wait for element to be visible (30s) |
+| `wait <N> seconds` | Explicit wait |
+| `verify <element> is visible` | Assert element is visible (10s) |
+| `verify <element> is not visible` | Assert element is hidden (10s) |
+| `verify <element> has text "<text>"` | Assert element contains text |
+| `verify <element> text contains "<text>"` | Assert element text includes substring |
+| `verify text "<text>" appears on the page` | Assert text visible anywhere on page |
+| `verify <element> count is <N>` | Assert number of matching elements |
+| `verify <element> count is greater than <N>` | Assert at least N+1 matching elements |
+| `verify all sidebar badges are hidden` | Assert all badge counts are 0 or empty |
+| `verify the editor header contains "<text>"` | Assert editor header includes text |
+| `store <element> text as <varName>` | Save element text to a variable |
+| `set <varName> to "<value>"` | Set a variable for later steps |
+| `type "<text>" in <element>` | Focus element and type text |
+| `press <key>` | Press a keyboard key |
+| `click <element>` | Click an element |
+| `click button "<text>"` | Click button by visible text |
+| `click menu item "<text>"` | Click menu item by visible text |
+| `click link "<text>"` | Click link by visible text |
+| `select "<text>" in the quick input` | Type and confirm in quick input |
+| `run command "<command>"` | Open command palette and run command |
+| `select workspace folder "<path>"` | Select a workspace folder |
+
+### Variables
+
+Steps can use `<varName>` placeholders that get replaced at runtime:
+
+```markdown
+- set name to "my-instruction"
+- select "<name>" in the quick input
+- verify the editor header contains "<name>.instructions.md"
+```
 
 ### Known Elements
 
-`the sessions workbench`, `the workbench`, `the sidebar`, `the chat bar`,
-`the titlebar`, `the auxiliary bar`, `the panel`, `the chat input`,
-`a chat response`
+**Workbench parts:** `the sessions workbench`, `the sidebar`, `the chat bar`,
+`the titlebar`, `the auxiliary bar`, `the panel`
+
+**Chat:** `the chat input`, `a chat response`
+
+**AI Customization overview:** `the customizations sidebar`,
+`the customizations overview`, `the agents section`, `the skills section`,
+`the instructions section`, `the prompts section`, `the hooks section`
+
+**Section counts:** `the agents count`, `the skills count`,
+`the instructions count`, `the prompts count`, `the hooks count`
+
+**Management editor:** `the management editor`, `the editor header`,
+`the embedded editor`, `the empty state`, `workspace items`, `user items`,
+`extension items`, `customization items`
+
+**Buttons:** `the create button`, `the back button`, `the add dropdown`
+
+**Inputs:** `the quick input`, `the quick input box`, `sidebar badges`
 
 ## Adding New Steps
 

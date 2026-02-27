@@ -45,10 +45,15 @@ const path = __importStar(require("path"));
  * Parse a `.scenario.md` file into a structured {@link Scenario}.
  *
  * Expected format:
- * ```
+ * ```markdown
  * # Scenario Name
  *
- * Optional description paragraph(s).
+ * Description paragraph(s).
+ *
+ * ## Preconditions
+ *
+ * - precondition 1
+ * - precondition 2
  *
  * ## Steps
  *
@@ -61,6 +66,7 @@ function parseScenario(filePath) {
     const lines = raw.split('\n');
     let name = path.basename(filePath, '.scenario.md');
     const descriptionLines = [];
+    const preconditions = [];
     const steps = [];
     let section = 'header';
     for (const line of lines) {
@@ -70,31 +76,45 @@ function parseScenario(filePath) {
             section = 'description';
             continue;
         }
-        if (trimmed.toLowerCase() === '## steps') {
+        if (/^## preconditions?$/i.test(trimmed)) {
+            section = 'preconditions';
+            continue;
+        }
+        if (/^## steps?$/i.test(trimmed)) {
             section = 'steps';
             continue;
         }
-        if (section === 'description' && trimmed.length > 0 && !trimmed.startsWith('#')) {
+        // Skip other headings
+        if (trimmed.startsWith('#')) {
+            continue;
+        }
+        const listItem = trimmed.match(/^(?:-|\d+\.)\s+(.*)/);
+        if (section === 'description' && trimmed.length > 0) {
             descriptionLines.push(trimmed);
         }
-        if (section === 'steps' && /^-\s+/.test(trimmed)) {
-            steps.push(trimmed.replace(/^-\s+/, '').trim());
+        if (section === 'preconditions' && listItem) {
+            preconditions.push(listItem[1].trim());
+        }
+        if (section === 'steps' && listItem) {
+            steps.push(listItem[1].trim());
         }
     }
     return {
         name,
         description: descriptionLines.join(' '),
+        preconditions,
         steps,
         filePath,
     };
 }
 /**
- * Discover all `.scenario.md` files under a directory.
+ * Discover all `.scenario.md` files under a directory, sorted by filename.
  */
 function discoverScenarios(dir) {
     const entries = fs.readdirSync(dir);
     return entries
         .filter(f => f.endsWith('.scenario.md'))
+        .sort()
         .map(f => parseScenario(path.join(dir, f)));
 }
 //# sourceMappingURL=scenarioParser.js.map

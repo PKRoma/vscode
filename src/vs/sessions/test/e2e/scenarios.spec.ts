@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import { discoverScenarios } from './scenarioParser';
-import { executeStep } from './actionMap';
+import { executeStep, StepContext } from './actionMap';
 import { launchSessionsWindow, SessionApp } from './sessionApp';
 
 // out/ sits next to scenarios/ in the e2e directory
@@ -31,10 +31,19 @@ async function run(): Promise<void> {
 		for (const scenario of scenarios) {
 			console.log(`▶ Scenario: ${scenario.name}`);
 
+			if (scenario.preconditions.length > 0) {
+				console.log('  Preconditions:');
+				for (const p of scenario.preconditions) {
+					console.log(`    • ${p}`);
+				}
+			}
+
+			const ctx = new StepContext();
+
 			for (const [i, step] of scenario.steps.entries()) {
-				const label = `  step ${i + 1}: ${step}`;
+				const label = `step ${i + 1}: ${step}`;
 				try {
-					await executeStep(app.page, step);
+					await executeStep(app.page, step, ctx);
 					console.log(`  ✅ ${label}`);
 					passed++;
 				} catch (err) {
