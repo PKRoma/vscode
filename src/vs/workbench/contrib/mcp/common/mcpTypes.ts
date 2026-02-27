@@ -137,6 +137,8 @@ export interface McpServerDefinition {
 	readonly staticMetadata?: McpServerStaticMetadata;
 	/** Indicates if the sandbox is enabled for this server. */
 	readonly sandboxEnabled?: boolean;
+	/** Sandbox configuration to apply for this server. */
+	readonly sandbox?: IMcpSandboxConfiguration;
 
 
 	readonly presentation?: {
@@ -170,6 +172,7 @@ export namespace McpServerDefinition {
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
 		readonly staticMetadata?: McpServerStaticMetadata;
 		readonly sandboxEnabled?: boolean;
+		readonly sandbox?: IMcpSandboxConfiguration;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -184,6 +187,7 @@ export namespace McpServerDefinition {
 			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
 			sandboxEnabled: def.sandboxEnabled,
+			sandbox: def.sandboxEnabled ? def.sandbox : undefined,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
 	}
@@ -197,7 +201,8 @@ export namespace McpServerDefinition {
 			&& objectsEqual(a.presentation, b.presentation)
 			&& objectsEqual(a.variableReplacement, b.variableReplacement)
 			&& objectsEqual(a.devMode, b.devMode)
-			&& a.sandboxEnabled === b.sandboxEnabled;
+			&& a.sandboxEnabled === b.sandboxEnabled
+			&& objectsEqual(a.sandbox, b.sandbox);
 	}
 }
 
@@ -683,7 +688,6 @@ export namespace McpConnectionState {
 		readonly code?: string;
 		readonly shouldRetry?: boolean;
 		readonly message: string;
-		readonly sandboxDiagnosticLog?: string;
 	}
 }
 

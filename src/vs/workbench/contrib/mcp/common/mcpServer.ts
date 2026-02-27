@@ -816,7 +816,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			try {
-				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition.label, mcpResource, configTarget, potentialBlocks, suggestion.sandboxConfig);
+				const updated = await this._mcpSandboxService.applySandboxConfigSuggestion(cnx.definition, mcpResource, configTarget, potentialBlocks, suggestion.sandboxConfig);
 				if (updated) {
 					this._removePotentialSandboxBlocks(potentialBlocks);
 					this._notificationService.info(localize('mcpSandboxSuggestion.apply.success', "Updated sandbox configuration for {0} in mcp.json. Restart server.", cnx.definition.label));

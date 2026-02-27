@@ -19,17 +19,18 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { IMcpSandboxConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpSandboxConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
+import { Mutable } from '../../../../base/common/types.js';
 
 export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandboxService');
 
 export interface IMcpSandboxService {
 	readonly _serviceBrand: undefined;
-	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, mcpResource: URI | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
+	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
 	isEnabled(serverDef: McpServerDefinition, serverLabel?: string): Promise<boolean>;
 	getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined;
-	applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
+	applySandboxConfigSuggestion(serverDef: McpServerDefinition, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
 }
 
 type SandboxConfigSuggestions = {
@@ -78,15 +79,13 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return !!serverDef.sandboxEnabled;
 	}
 
-	public async launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, mcpResource: URI | undefined, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
+	public async launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
 		if (launch.type !== McpServerTransportType.Stdio) {
 			return launch;
 		}
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
-			const scanTarget = this._toMcpResourceTarget(configTarget);
-			const rootSandboxConfig = mcpResource ? (await this._mcpResourceScannerService.scanMcpServers(mcpResource, scanTarget)).sandbox : undefined;
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
-			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, rootSandboxConfig, launch.cwd);
+			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, serverDef.sandbox, launch.cwd);
 			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
 			const sandboxEnv = this._getSandboxEnvVariables(launchDetails.tempDir, remoteAuthority);
 			if (launchDetails.srtPath) {
@@ -156,64 +155,71 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		};
 	}
 
-	public async applySandboxConfigSuggestion(serverName: string, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
+	public async applySandboxConfigSuggestion(serverDef: McpServerDefinition, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
 		const scanTarget = this._toMcpResourceTarget(configTarget);
-		const scanned = await this._mcpResourceScannerService.scanMcpServers(mcpResource, scanTarget);
-		const existingServer = scanned.servers?.[serverName];
-		if (!existingServer || existingServer.type !== McpServerType.LOCAL) {
-			return false;
-		}
+		let didChange = false;
 
-		let suggestedAllowedDomains = suggestedSandboxConfig?.network?.allowedDomains ?? [];
-		let suggestedAllowWrite = suggestedSandboxConfig?.filesystem?.allowWrite ?? [];
+		await this._mcpResourceScannerService.updateSandboxConfig(data => {
+			const existingSandbox = data.sandbox ?? serverDef.sandbox;
+			const suggestedAllowedDomains = suggestedSandboxConfig?.network?.allowedDomains ?? [];
+			const suggestedAllowWrite = suggestedSandboxConfig?.filesystem?.allowWrite ?? [];
 
-		if (!suggestedAllowedDomains.length && !suggestedAllowWrite.length) {
-			const suggestions = this._getSandboxConfigSuggestions(potentialBlocks, scanned.sandbox);
-			if (!suggestions) {
-				return false;
+			const currentAllowedDomains = new Set(existingSandbox?.network?.allowedDomains ?? []);
+			for (const domain of suggestedAllowedDomains) {
+				if (domain && !currentAllowedDomains.has(domain)) {
+					currentAllowedDomains.add(domain);
+				}
 			}
-			suggestedAllowedDomains = [...suggestions.allowedDomains];
-			suggestedAllowWrite = [...suggestions.allowWrite];
-		}
 
-		const currentAllowedDomains = new Set(scanned.sandbox?.network?.allowedDomains ?? []);
-		for (const domain of suggestedAllowedDomains) {
-			if (domain && !currentAllowedDomains.has(domain)) {
-				currentAllowedDomains.add(domain);
+			const currentAllowWrite = new Set(existingSandbox?.filesystem?.allowWrite ?? []);
+			for (const path of suggestedAllowWrite) {
+				if (path && !currentAllowWrite.has(path)) {
+					currentAllowWrite.add(path);
+				}
 			}
-		}
 
-		const currentAllowWrite = new Set(scanned.sandbox?.filesystem?.allowWrite ?? []);
-		for (const path of suggestedAllowWrite) {
-			if (path && !currentAllowWrite.has(path)) {
-				currentAllowWrite.add(path);
+			didChange = currentAllowedDomains.size !== (existingSandbox?.network?.allowedDomains?.length ?? 0)
+				|| currentAllowWrite.size !== (existingSandbox?.filesystem?.allowWrite?.length ?? 0);
+
+			if (!didChange) {
+				return data;
 			}
-		}
 
-		const didChange = currentAllowedDomains.size !== (scanned.sandbox?.network?.allowedDomains?.length ?? 0)
-			|| currentAllowWrite.size !== (scanned.sandbox?.filesystem?.allowWrite?.length ?? 0);
-
-		if (!didChange) {
-			return false;
-		}
-
-		const allowedDomains = [...currentAllowedDomains];
-		const allowWrite = [...currentAllowWrite];
-
-		const nextSandboxConfig: IMcpSandboxConfiguration = {};
-		if (allowedDomains.length > 0) {
-			nextSandboxConfig.network = {
-				allowedDomains,
+			const nextSandboxConfig: IMcpSandboxConfiguration = {
+				...existingSandbox,
 			};
-		}
-		if (allowWrite.length > 0) {
-			nextSandboxConfig.filesystem = {
-				allowWrite,
-			};
-		}
 
-		await this._mcpResourceScannerService.updateSandboxConfig(nextSandboxConfig, mcpResource, scanTarget);
-		return true;
+			if (currentAllowedDomains.size > 0 || existingSandbox?.network?.deniedDomains?.length) {
+				nextSandboxConfig.network = {
+					...existingSandbox?.network,
+					allowedDomains: [...currentAllowedDomains],
+				};
+			}
+
+			if (currentAllowWrite.size > 0 || existingSandbox?.filesystem?.denyRead?.length || existingSandbox?.filesystem?.denyWrite?.length) {
+				nextSandboxConfig.filesystem = {
+					...existingSandbox?.filesystem,
+					allowWrite: [...currentAllowWrite],
+				};
+			}
+
+			//always remove sandbox at server level when writing back, it should only exist at the top level. This is to sanitize any old or malformed configs that may have sandbox defined at the server level.
+			if (data.servers) {
+				for (const serverName in data.servers) {
+					const serverConfig = data.servers[serverName];
+					if (serverConfig.type === McpServerType.LOCAL) {
+						delete (serverConfig as Mutable<IMcpStdioServerConfiguration>).sandbox;
+					}
+				}
+			}
+
+			return {
+				...data,
+				sandbox: nextSandboxConfig,
+			};
+		}, mcpResource, scanTarget);
+
+		return didChange;
 	}
 
 	private _getSandboxConfigSuggestions(potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestions | undefined {
