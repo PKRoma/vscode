@@ -25,6 +25,7 @@ import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/brows
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatModeService, isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -120,6 +121,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -301,7 +303,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const resolvedMode = session.modeId ? this.chatModeService.findModeById(session.modeId) : undefined;
 		const modeKind = resolvedMode?.kind ?? ChatModeKind.Agent;
 		const modeIsBuiltin = resolvedMode ? isBuiltinChatMode(resolvedMode) : true;
-		const modeId = resolvedMode ? (modeIsBuiltin ? resolvedMode.id : 'custom') : 'agent';
+		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
+
+		const rawModeInstructions = resolvedMode?.modeInstructions?.get();
+		const modeInstructions = rawModeInstructions ? {
+			name: resolvedMode!.name.get(),
+			content: rawModeInstructions.content,
+			toolReferences: this.toolsService.toToolReferences(rawModeInstructions.toolReferences),
+			metadata: rawModeInstructions.metadata,
+		} : undefined;
 
 		const sendOptions: IChatSendRequestOptions = {
 			location: ChatAgentLocation.Chat,
@@ -309,8 +319,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			modeInfo: {
 				kind: modeKind,
 				isBuiltin: modeIsBuiltin,
-				modeInstructions: undefined,
-				modeId: modeId as 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined,
+				modeInstructions,
+				modeId,
 				applyCodeBlockSuggestionId: undefined,
 			},
 			agentIdSilent: contribution?.type,
