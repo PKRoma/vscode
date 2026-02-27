@@ -10,6 +10,7 @@
     "environmentPower",
     "chatParticipantPrivate",
     "chatProvider",
+    "chatCustomAgents",
     "contribStatusBarItems",
     "contribViewsRemote",
     "customEditorMove",
