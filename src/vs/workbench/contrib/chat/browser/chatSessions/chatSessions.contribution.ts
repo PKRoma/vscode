@@ -44,7 +44,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { AgentSessionProviders, backgroundAgentDisplayName, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, backgroundAgentDisplayName, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -373,7 +373,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (chatSessionType === AgentSessionProviders.Local) {
 			displayName = localize('chat.session.inProgress.local', "Local Agent");
 		} else if (chatSessionType === AgentSessionProviders.Background) {
-			displayName = localize('chat.session.inProgress.background', "Background Agent");
+			displayName = localize('chat.session.inProgress.background', "{0} Agent", backgroundAgentDisplayName.get());
 		} else if (chatSessionType === AgentSessionProviders.Cloud) {
 			displayName = localize('chat.session.inProgress.cloud', "Cloud Agent");
 		} else {
@@ -696,6 +696,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _registerAgent(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
 		const { type: id, name, displayName, description } = contribution;
+		const provider = getAgentSessionProvider(id);
+		const canonicalDisplayName = provider ? getAgentSessionProviderName(provider) : displayName;
 		const storedIcon = this._sessionTypeIcons.get(id);
 		const icons = ThemeIcon.isThemeIcon(storedIcon)
 			? { themeIcon: storedIcon, icon: undefined, iconDark: undefined }
@@ -706,7 +708,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const agentData: IChatAgentData = {
 			id,
 			name,
-			fullName: displayName,
+			fullName: canonicalDisplayName,
 			description: description,
 			isDefault: false,
 			isCore: false,
@@ -1159,14 +1161,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 * Get the welcome title for a specific session type
 	 */
 	public getWelcomeTitleForSessionType(chatSessionType: string): string | undefined {
-		return this._sessionTypeWelcomeTitles.get(chatSessionType);
+		const welcomeTitle = this._sessionTypeWelcomeTitles.get(chatSessionType);
+		const provider = getAgentSessionProvider(chatSessionType);
+		if (provider === AgentSessionProviders.Background && welcomeTitle) {
+			return welcomeTitle.replaceAll('Background Agent', getAgentSessionProviderName(provider));
+		}
+
+		return welcomeTitle;
 	}
 
 	/**
 	 * Get the welcome message for a specific session type
 	 */
 	public getWelcomeMessageForSessionType(chatSessionType: string): string | undefined {
-		return this._sessionTypeWelcomeMessages.get(chatSessionType);
+		const welcomeMessage = this._sessionTypeWelcomeMessages.get(chatSessionType);
+		const provider = getAgentSessionProvider(chatSessionType);
+		if (provider === AgentSessionProviders.Background && welcomeMessage) {
+			return welcomeMessage.replaceAll('Background Agent', getAgentSessionProviderName(provider));
+		}
+
+		return welcomeMessage;
 	}
 
 	/**

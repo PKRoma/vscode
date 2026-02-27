@@ -108,6 +108,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookSchema.js';
+import { AgentSessionProviders, backgroundAgentDisplayName } from '../agentSessions/agentSessions.js';
 import { ChatQuestionCarouselAutoReply } from './chatQuestionCarouselAutoReply.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
@@ -738,7 +739,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderAvatar(element, templateData);
 		}
 
-		templateData.username.textContent = element.username;
+		const isBackgroundSession = isResponseVM(element) && getChatSessionType(element.sessionResource) === AgentSessionProviders.Background;
+		templateData.username.textContent = isBackgroundSession ? backgroundAgentDisplayName.get() : element.username;
 		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME || this.environmentService.isSessionsWindow);
 		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME || this.environmentService.isSessionsWindow);
 

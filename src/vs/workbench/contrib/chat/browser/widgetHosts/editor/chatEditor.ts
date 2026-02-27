@@ -31,6 +31,7 @@ import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableCha
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { getAgentSessionProvider, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -223,7 +224,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();
 				const contribution = contributions.find(c => c.type === chatSessionType);
 				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+					const knownProvider = getAgentSessionProvider(contribution.type);
+					const displayName = knownProvider ? getAgentSessionProviderName(knownProvider) : contribution.displayName;
+					this.widget.lockToCodingAgent(contribution.name, displayName, contribution.type);
 					isContributedChatSession = true;
 				} else {
 					this.widget.unlockFromCodingAgent();

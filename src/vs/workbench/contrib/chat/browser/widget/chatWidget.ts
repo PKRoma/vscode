@@ -84,6 +84,7 @@ import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
+import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 
 const $ = dom.$;
 
@@ -1099,16 +1100,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
 			const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
 			const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+			const backgroundDisplayName = getAgentSessionProviderName(AgentSessionProviders.Background);
+			const normalizeBackgroundWelcomeCopy = (value: string | undefined): string | undefined => {
+				if (!value || this._lockedAgent?.id !== AgentSessionProviders.Background) {
+					return value;
+				}
+
+				return value.replaceAll('Background Agent', backgroundDisplayName);
+			};
+			const normalizedProviderTitle = normalizeBackgroundWelcomeCopy(providerTitle);
+			const normalizedProviderMessage = normalizeBackgroundWelcomeCopy(providerMessage);
 
 			// Fallback to default messages if provider doesn't specify
-			const message = providerMessage
-				? new MarkdownString(providerMessage)
+			const message = normalizedProviderMessage
+				? new MarkdownString(normalizedProviderMessage)
 				: (this._lockedAgent?.prefix === '@copilot '
 					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._lockedAgent.prefix, 'https://aka.ms/coding-agent-docs') + DISCLAIMER, { isTrusted: true })
 					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._lockedAgent?.prefix) + DISCLAIMER));
 
 			return {
-				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._lockedAgent?.prefix),
+				title: normalizedProviderTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._lockedAgent?.prefix),
 				message,
 				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
