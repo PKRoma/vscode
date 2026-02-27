@@ -41,6 +41,7 @@ exports.launchSessionsWindow = launchSessionsWindow;
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const os = __importStar(require("os"));
+const cp = __importStar(require("child_process"));
 const playwright = __importStar(require("playwright-core"));
 // out/ → e2e/ → test/ → sessions/ → vs/ → src/ → ROOT
 const ROOT = process.env['SESSIONS_E2E_ROOT'] ?? path.resolve(__dirname, '..', '..', '..', '..', '..', '..');
@@ -61,6 +62,8 @@ async function launchSessionsWindow() {
     // Pre-seed the application SQLite storage so the welcome overlay is skipped.
     // VS Code stores application-scoped keys in User/globalStorage/state.vscdb.
     await seedWelcomeStorage(tmpDir);
+    // Pick a random port for CDP so parallel runs don't collide.
+    const cdpPort = 9200 + Math.floor(Math.random() * 800);
     const args = [
         ...(ROOT.includes('/Resources/app') ? [] : [ROOT]),
         '--skip-release-notes',
@@ -74,58 +77,38 @@ async function launchSessionsWindow() {
         '--enable-smoke-test-driver',
         '--sessions',
         '--skip-sessions-welcome',
+        `--remote-debugging-port=${cdpPort}`,
         // Disable built-in auth and the real Copilot so our mock handles everything
         '--disable-extension=vscode.github',
         '--disable-extension=vscode.github-authentication',
         '--disable-extension=GitHub.copilot',
         '--disable-extension=GitHub.copilot-chat',
     ];
-    const electron = await playwright._electron.launch({
-        executablePath: electronPath,
-        args,
+    const ts = () => new Date().toISOString().slice(11, 23);
+    // Spawn VS Code as a child process (not via playwright._electron.launch which
+    // hangs because VS Code's main process doesn't respond to Playwright's CDP handshake).
+    const proc = cp.spawn(electronPath, args, {
         env: {
             ...process.env,
             VSCODE_DEV: '1',
             VSCODE_CLI: '1',
             VSCODE_REPOSITORY: ROOT,
         },
-        timeout: 0,
+        stdio: ['ignore', 'pipe', 'pipe'],
     });
-    const ts = () => new Date().toISOString().slice(11, 23);
-    console.log(`[e2e ${ts()}] Electron process launched`);
-    // firstWindow() correctly handles the race between "window already open" and "not yet open"
-    console.log(`[e2e ${ts()}] Waiting for first window via firstWindow()…`);
-    const firstPage = await electron.firstWindow({ timeout: 30_000 });
-    console.log(`[e2e ${ts()}] Got first window`);
-    // Track all windows; the sessions window may be the 1st or a later one
-    const allPages = [firstPage];
-    electron.on('window', (win) => {
-        console.log(`[e2e ${ts()}] Additional window opened (total: ${allPages.length + 1})`);
-        allPages.push(win);
-    });
-    // Give VS Code up to 10s to open any additional windows (e.g. a background window first)
-    await firstPage.waitForTimeout(10_000);
-    console.log(`[e2e ${ts()}] Total windows after wait: ${allPages.length}`);
-    // Find the window that has the sessions workbench
-    let page = firstPage;
-    for (const win of allPages) {
-        if (win.isClosed()) {
-            console.log(`[e2e ${ts()}] Skipping closed window`);
-            continue;
-        }
-        try {
-            const cls = await win.evaluate(() => document.querySelector('.monaco-workbench')?.className ?? '');
-            console.log(`[e2e ${ts()}] Window classes snippet: "${String(cls).slice(0, 120)}"`);
-            if (String(cls).includes('agent-sessions-workbench')) {
-                page = win;
-                console.log(`[e2e ${ts()}] Found sessions window`);
-                break;
-            }
-        }
-        catch (e) {
-            console.log(`[e2e ${ts()}] Could not evaluate window: ${e}`);
-        }
-    }
+    proc.stdout?.on('data', (d) => process.stdout.write(`[vscode] ${d}`));
+    proc.stderr?.on('data', (d) => process.stderr.write(`[vscode] ${d}`));
+    console.log(`[e2e ${ts()}] VS Code spawned (pid=${proc.pid}, cdpPort=${cdpPort})`);
+    // Poll until the CDP endpoint is ready.
+    const cdpEndpoint = `http://127.0.0.1:${cdpPort}`;
+    await waitForCDP(cdpEndpoint, 30_000);
+    console.log(`[e2e ${ts()}] CDP endpoint ready`);
+    // Connect Playwright to the running VS Code renderer process.
+    const browser = await playwright.chromium.connectOverCDP(cdpEndpoint);
+    console.log(`[e2e ${ts()}] Playwright connected via CDP`);
+    // VS Code opens multiple BrowserWindow contexts. Find the sessions window.
+    const page = await findSessionsPage(browser, ts, 20_000);
+    console.log(`[e2e ${ts()}] Sessions page found`);
     // Intercept Copilot API calls so the token manager sees a valid session
     // without needing real GitHub credentials.
     await mockCopilotApiRoutes(page);
@@ -143,7 +126,8 @@ async function launchSessionsWindow() {
     return {
         page,
         async close() {
-            await electron.close();
+            await browser.close();
+            proc.kill();
             fs.rmSync(tmpDir, { recursive: true, force: true });
         },
     };
@@ -206,6 +190,64 @@ function getDevElectronPath() {
         default:
             throw new Error(`Unsupported platform: ${process.platform}`);
     }
+}
+/**
+ * Poll the CDP HTTP endpoint until it responds (VS Code is ready to accept connections).
+ */
+async function waitForCDP(endpoint, timeoutMs) {
+    const http = require('http');
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const ok = await new Promise(resolve => {
+            const req = http.get(`${endpoint}/json/version`, res => {
+                res.resume();
+                resolve(res.statusCode === 200);
+            });
+            req.on('error', () => resolve(false));
+            req.setTimeout(1000, () => { req.destroy(); resolve(false); });
+        });
+        if (ok) {
+            return;
+        }
+        await new Promise(r => setTimeout(r, 500));
+    }
+    throw new Error(`CDP endpoint ${endpoint} did not become ready within ${timeoutMs}ms`);
+}
+/**
+ * Iterate CDP browser contexts/pages to find the one rendering the sessions workbench.
+ */
+async function findSessionsPage(browser, ts, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        for (const ctx of browser.contexts()) {
+            for (const pg of ctx.pages()) {
+                try {
+                    const found = await pg.evaluate(() => !!document.querySelector('.monaco-workbench.agent-sessions-workbench')).catch(() => false);
+                    if (found) {
+                        return pg;
+                    }
+                    // Also check if it has the workbench class at all (even before sessions class is added)
+                    const cls = await pg.evaluate(() => document.querySelector('.monaco-workbench')?.className ?? '').catch(() => '');
+                    if (cls) {
+                        console.log(`[e2e ${ts()}] Page has workbench classes: "${String(cls).slice(0, 100)}"`);
+                    }
+                }
+                catch {
+                    // page navigating or closed — skip
+                }
+            }
+        }
+        await new Promise(r => setTimeout(r, 500));
+    }
+    // Timeout: return the first non-closed page with any workbench
+    for (const ctx of browser.contexts()) {
+        for (const pg of ctx.pages()) {
+            if (!pg.isClosed()) {
+                return pg;
+            }
+        }
+    }
+    throw new Error('Could not find sessions workbench page within timeout');
 }
 /**
  * Pre-seed the VS Code application SQLite storage so the sessions welcome
