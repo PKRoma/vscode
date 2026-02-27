@@ -554,11 +554,10 @@ export class ChangesViewPane extends ViewPane {
 				if (sessionResource) {
 					const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
 					this.authenticationService.getSessions('github').then(sessions => {
-						if (currentRunId !== checkPRRunId) {
+						if (currentRunId !== checkPRRunId || sessions.length === 0) {
 							return;
 						}
-						const token = sessions.length > 0 ? sessions[0].accessToken : undefined;
-						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata, token).catch(() => { /* ignore */ });
+						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata, sessions[0].accessToken).catch(() => { /* ignore */ });
 					}).catch(() => { /* ignore */ });
 				}
 			}));

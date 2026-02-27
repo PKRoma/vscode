@@ -115,6 +115,11 @@ async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePat
 }
 
 async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined, accessToken: string | undefined): Promise<void> {
+	if (!accessToken) {
+		vscode.commands.executeCommand('setContext', 'github.hasOpenPullRequest', false);
+		return;
+	}
+
 	const resolved = await resolveSessionRepo(gitAPI, sessionMetadata, false);
 	if (!resolved) {
 		vscode.commands.executeCommand('setContext', 'github.hasOpenPullRequest', false);
@@ -122,10 +127,6 @@ async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri
 	}
 
 	try {
-		if (!accessToken) {
-			vscode.commands.executeCommand('setContext', 'github.hasOpenPullRequest', false);
-			return;
-		}
 		const octokit = await getOctokitFromToken(accessToken);
 		const { data: openPRs } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
