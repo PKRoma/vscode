@@ -247,6 +247,19 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(NativeEditContextRegistry.register(ownerID, this));
+		this._register(context.viewModel.model.onDidChangeContent((e) => {
+			let doChange = false;
+			for (const change of e.changes) {
+				if (change.range.startLineNumber <= this._editContextPrimarySelection.endLineNumber
+					&& change.range.endLineNumber >= this._editContextPrimarySelection.startLineNumber) {
+					doChange = true;
+					break;
+				}
+			}
+			if (doChange) {
+				this._updateEditContext();
+			}
+		}));
 	}
 
 	// --- Public methods ---
@@ -310,25 +323,15 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.fromLineNumber + e.count - 1);
 		return true;
 	}
 
 	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
 	}
 
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
-	}
-
-	private _updateEditContextOnLineChange(fromLineNumber: number, toLineNumber: number): void {
-		if (this._editContextPrimarySelection.endLineNumber < fromLineNumber || this._editContextPrimarySelection.startLineNumber > toLineNumber) {
-			return;
-		}
-		this._updateEditContext();
 	}
 
 	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
