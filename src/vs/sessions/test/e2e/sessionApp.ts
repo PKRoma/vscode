@@ -87,6 +87,10 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 	await page.waitForLoadState('domcontentloaded');
 	console.log('[e2e] DOM content loaded');
 
+	// Intercept Copilot API calls so the token manager sees a valid session
+	// without needing real GitHub credentials.
+	await mockCopilotApiRoutes(page);
+
 	// Log console output from the page
 	page.on('console', msg => {
 		if (msg.type() === 'error') {
@@ -108,6 +112,7 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 		if (win.url().includes('sessions')) {
 			page = win;
 			await page.waitForLoadState('domcontentloaded');
+			await mockCopilotApiRoutes(page);
 			console.log(`[e2e] Switched to sessions window: ${page.url()}`);
 			break;
 		}
@@ -128,6 +133,55 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 			fs.rmSync(tmpDir, { recursive: true, force: true });
 		},
 	};
+}
+
+/**
+ * Intercept Copilot/GitHub API calls so the extension sees a valid session
+ * without needing real credentials. This prevents the welcome overlay from
+ * showing and avoids 401 errors in the console during tests.
+ */
+async function mockCopilotApiRoutes(page: playwright.Page): Promise<void> {
+	const futureExpiry = Math.floor(Date.now() / 1000) + 7200;
+
+	// Copilot token endpoint — Copilot uses this to get a short-lived token
+	await page.route('**/copilot_internal/v2/token**', route => {
+		route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				token: 'mock-copilot-token',
+				expires_at: futureExpiry,
+				refresh_in: 1800,
+				sku: 'copilot_enterprise',
+				tracking_id: 'mock-tracking-id',
+			}),
+		});
+	});
+
+	// Copilot user entitlement endpoint
+	await page.route('**/copilot_internal/user**', route => {
+		route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				login: 'e2e-test-user',
+				id: 1,
+				copilot_plan: 'enterprise',
+				public_repos: 0,
+				public_gists: 0,
+				followers: 0,
+			}),
+		});
+	});
+
+	// VS Code marketplace extension query (prevents 404 noise)
+	await page.route('**/extensionquery**', route => {
+		route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({ results: [] }),
+		});
+	});
 }
 
 function getDevElectronPath(): string {
