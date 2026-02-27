@@ -8,7 +8,7 @@ import { API as GitAPI, RefType, Repository } from './typings/git.js';
 import { publishRepository } from './publish.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links.js';
-import { getOctokit } from './auth.js';
+import { getOctokit, getOctokitSilentFirst } from './auth.js';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
@@ -98,7 +98,7 @@ async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri
 	}
 
 	try {
-		const octokit = await getOctokit();
+		const octokit = await getOctokitSilentFirst();
 		const { data: openPRs } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
 			repo: resolved.remoteInfo.repo,
@@ -153,7 +153,7 @@ async function openPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | un
 	}
 
 	try {
-		const octokit = await getOctokit();
+		const octokit = await getOctokitSilentFirst();
 		const { data: pullRequests } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
 			repo: resolved.remoteInfo.repo,
