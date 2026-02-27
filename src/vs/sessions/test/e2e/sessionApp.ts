@@ -54,8 +54,11 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 		`--extensionDevelopmentPath=${mockExtPath}`,
 		'--enable-smoke-test-driver',
 		'--sessions',
+		// Disable built-in auth and the real Copilot so our mock handles everything
 		'--disable-extension=vscode.github',
 		'--disable-extension=vscode.github-authentication',
+		'--disable-extension=GitHub.copilot',
+		'--disable-extension=GitHub.copilot-chat',
 	];
 
 	const electron = await playwright._electron.launch({
