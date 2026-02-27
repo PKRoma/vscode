@@ -1,0 +1,20 @@
+{
+	"name": "mock-chat-provider",
+	"displayName": "Mock Chat Provider",
+	"description": "Provides a mock chat participant for agent sessions testing",
+	"version": "0.0.1",
+	"engines": { "vscode": "*" },
+	"activationEvents": ["onStartupFinished"],
+	"main": "./extension.js",
+	"contributes": {
+		"chatParticipants": [
+			{
+				"id": "mock-chat-provider.mock",
+				"fullName": "Mock Agent",
+				"name": "mock",
+				"description": "Mock chat participant for testing",
+				"isDefault": true
+			}
+		]
+	}
+}
