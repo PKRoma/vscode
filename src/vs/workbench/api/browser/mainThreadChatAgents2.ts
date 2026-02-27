@@ -170,15 +170,20 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private _pushCustomAgents(): void {
 		const { custom } = this._chatModeService.getModes();
-		const dtos: ICustomAgentDto[] = custom.map(mode => ({
-			name: mode.name.get(),
-			label: mode.label.get(),
-			description: mode.description?.get() ?? '',
-			prompt: mode.modeInstructions?.get()?.content ?? '',
-			tools: [...(mode.customTools?.get() ?? [])],
-			target: mode.target.get() === Target.Undefined ? undefined : mode.target.get(),
-			model: mode.model?.get()?.[0] ?? undefined,
-		}));
+		const dtos: ICustomAgentDto[] = custom
+			.filter(mode => {
+				const visibility = mode.visibility?.get();
+				return !visibility || visibility.userInvocable;
+			})
+			.map(mode => ({
+				name: mode.name.get(),
+				label: mode.label.get(),
+				description: mode.description?.get() ?? '',
+				prompt: mode.modeInstructions?.get()?.content ?? '',
+				tools: [...(mode.customTools?.get() ?? [])],
+				target: mode.target.get() === Target.Undefined ? undefined : mode.target.get(),
+				model: mode.model?.get()?.[0] ?? undefined,
+			}));
 		this._proxy.$acceptCustomAgents(dtos);
 	}
 
