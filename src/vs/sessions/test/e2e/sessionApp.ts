@@ -57,15 +57,30 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 			VSCODE_CLI: '1',
 			VSCODE_REPOSITORY: ROOT,
 		},
-		timeout: 60_000,
+		timeout: 120_000,
 	});
 
+	// VS Code may open multiple windows (main workbench + sessions).
+	// Wait for at least one window, then look for the sessions window.
 	let page = electron.windows()[0];
 	if (!page) {
-		page = await electron.waitForEvent('window', { timeout: 30_000 });
+		page = await electron.waitForEvent('window', { timeout: 90_000 });
 	}
 
+	// Wait for DOM and give the workbench time to render
 	await page.waitForLoadState('domcontentloaded');
+	await page.waitForTimeout(5_000);
+
+	// If the sessions window opened as a second window, find it
+	const allWindows = electron.windows();
+	for (const win of allWindows) {
+		const url = win.url();
+		if (url.includes('sessions')) {
+			page = win;
+			await page.waitForLoadState('domcontentloaded');
+			break;
+		}
+	}
 
 	return {
 		page,

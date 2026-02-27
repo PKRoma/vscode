@@ -56,7 +56,7 @@ async function launchSessionsWindow() {
         throw new Error(`Electron binary not found at ${electronPath}. ` +
             `Run \`./scripts/code.sh\` once to download Electron, or set SESSIONS_E2E_ELECTRON_PATH.`);
     }
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sessions-e2e-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sessions-e2e-${Date.now()}-`));
     const mockExtPath = path.join(__dirname, '..', 'extensions', 'mock-chat-provider');
     const args = [
         ...(ROOT.includes('/Resources/app') ? [] : [ROOT]),
@@ -69,7 +69,7 @@ async function launchSessionsWindow() {
         `--user-data-dir=${tmpDir}`,
         `--extensionDevelopmentPath=${mockExtPath}`,
         '--enable-smoke-test-driver',
-        '--new-window',
+        '--sessions',
     ];
     const electron = await playwright._electron.launch({
         executablePath: electronPath,
@@ -80,13 +80,27 @@ async function launchSessionsWindow() {
             VSCODE_CLI: '1',
             VSCODE_REPOSITORY: ROOT,
         },
-        timeout: 60_000,
+        timeout: 120_000,
     });
+    // VS Code may open multiple windows (main workbench + sessions).
+    // Wait for at least one window, then look for the sessions window.
     let page = electron.windows()[0];
     if (!page) {
-        page = await electron.waitForEvent('window', { timeout: 30_000 });
+        page = await electron.waitForEvent('window', { timeout: 90_000 });
     }
+    // Wait for DOM and give the workbench time to render
     await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(5_000);
+    // If the sessions window opened as a second window, find it
+    const allWindows = electron.windows();
+    for (const win of allWindows) {
+        const url = win.url();
+        if (url.includes('sessions')) {
+            page = win;
+            await page.waitForLoadState('domcontentloaded');
+            break;
+        }
+    }
     return {
         page,
         async close() {
