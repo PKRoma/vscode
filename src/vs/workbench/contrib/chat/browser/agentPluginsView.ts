@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
+import { Event } from '../../../../base/common/event.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -42,18 +43,20 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
 
 //#region Item model
 
-const enum AgentPluginItemKind {
+export const enum AgentPluginItemKind {
 	Installed = 'installed',
 	Marketplace = 'marketplace',
 }
 
-interface IInstalledPluginItem {
+export interface IInstalledPluginItem {
 	readonly kind: AgentPluginItemKind.Installed;
 	readonly name: string;
 	readonly description: string;
@@ -61,7 +64,7 @@ interface IInstalledPluginItem {
 	readonly plugin: IAgentPlugin;
 }
 
-interface IMarketplacePluginItem {
+export interface IMarketplacePluginItem {
 	readonly kind: AgentPluginItemKind.Marketplace;
 	readonly name: string;
 	readonly description: string;
@@ -72,7 +75,7 @@ interface IMarketplacePluginItem {
 	readonly readmeUri?: URI;
 }
 
-type IAgentPluginItem = IInstalledPluginItem | IMarketplacePluginItem;
+export type IAgentPluginItem = IInstalledPluginItem | IMarketplacePluginItem;
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
 	const name = basename(plugin.uri);
@@ -327,6 +330,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -378,6 +382,14 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			}) as WorkbenchPagedList<IAgentPluginItem>);
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+
+		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
+			this.editorService.openEditor(
+				this.instantiationService.createInstance(AgentPluginEditorInput, options.element!),
+				options.editorOptions,
+				ACTIVE_GROUP
+			);
+		}));
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IAgentPluginItem>): void {

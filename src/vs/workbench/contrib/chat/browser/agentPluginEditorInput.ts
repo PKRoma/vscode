@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { join } from '../../../../base/common/path.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IAgentPluginItem, AgentPluginItemKind } from './agentPluginsView.js';
+
+const AgentPluginEditorIcon = registerIcon('agent-plugin-editor-icon', Codicon.extensions, localize('agentPluginEditorLabelIcon', 'Icon of the Agent Plugin editor.'));
+
+function getPluginId(item: IAgentPluginItem): string {
+	if (item.kind === AgentPluginItemKind.Installed) {
+		return item.plugin.uri.toString();
+	}
+	return `${item.marketplaceReference.canonicalId}/${item.source}`;
+}
+
+export class AgentPluginEditorInput extends EditorInput {
+
+	static readonly ID = 'workbench.agentPlugin.input';
+
+	override get typeId(): string {
+		return AgentPluginEditorInput.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	}
+
+	override get resource() {
+		return URI.from({
+			scheme: Schemas.extension,
+			path: join(getPluginId(this._item), 'agentPlugin')
+		});
+	}
+
+	constructor(private _item: IAgentPluginItem) {
+		super();
+	}
+
+	get item(): IAgentPluginItem { return this._item; }
+
+	override getName(): string {
+		return localize('agentPluginInputName', "Plugin: {0}", this._item.name);
+	}
+
+	override getIcon(): ThemeIcon | undefined {
+		return AgentPluginEditorIcon;
+	}
+
+	override matches(other: EditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
+
+		return other instanceof AgentPluginEditorInput && getPluginId(this._item) === getPluginId(other._item);
+	}
+}
