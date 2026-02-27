@@ -8,7 +8,7 @@ import { API as GitAPI, RefType, Repository } from './typings/git.js';
 import { publishRepository } from './publish.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links.js';
-import { getOctokit, getOctokitFromToken, getOctokitSilentFirst } from './auth.js';
+import { getOctokitFromToken, getOctokitSilentFirst } from './auth.js';
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
@@ -52,7 +52,11 @@ async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePat
 
 	// The git extension may not have discovered the worktree yet, try opening it explicitly
 	if (!repository) {
-		repository = await gitAPI.openRepository(worktreeUri);
+		try {
+			repository = await gitAPI.openRepository(worktreeUri);
+		} catch {
+			// openRepository can fail if the folder can't be opened
+		}
 	}
 
 	if (!repository) {
@@ -65,14 +69,15 @@ async function resolveSessionRepo(gitAPI: GitAPI, sessionMetadata: { worktreePat
 	// After openRepository, the state may not be populated yet — wait for it
 	if (!repository.state.HEAD) {
 		await new Promise<void>(resolve => {
+			let timeoutHandle: ReturnType<typeof setTimeout>;
 			const listener = repository!.state.onDidChange(() => {
 				if (repository!.state.HEAD) {
+					clearTimeout(timeoutHandle);
 					listener.dispose();
 					resolve();
 				}
 			});
-			// Timeout after 10s to avoid hanging
-			setTimeout(() => { listener.dispose(); resolve(); }, 10000);
+			timeoutHandle = setTimeout(() => { listener.dispose(); resolve(); }, 10000);
 		});
 	}
 
@@ -117,9 +122,11 @@ async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri
 	}
 
 	try {
-		const octokit = accessToken
-			? await getOctokitFromToken(accessToken)
-			: await getOctokitSilentFirst();
+		if (!accessToken) {
+			vscode.commands.executeCommand('setContext', 'github.hasOpenPullRequest', false);
+			return;
+		}
+		const octokit = await getOctokitFromToken(accessToken);
 		const { data: openPRs } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
 			repo: resolved.remoteInfo.repo,

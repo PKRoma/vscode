@@ -547,16 +547,19 @@ export class ChangesViewPane extends ViewPane {
 			}));
 
 			// Check if a PR exists when the active session changes
+			let checkPRRunId = 0;
 			this.renderDisposables.add(autorun(reader => {
 				const sessionResource = activeSessionResource.read(reader);
+				const currentRunId = ++checkPRRunId;
 				if (sessionResource) {
 					const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
 					this.authenticationService.getSessions('github').then(sessions => {
+						if (currentRunId !== checkPRRunId) {
+							return;
+						}
 						const token = sessions.length > 0 ? sessions[0].accessToken : undefined;
 						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata, token).catch(() => { /* ignore */ });
-					}).catch(() => {
-						this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata).catch(() => { /* ignore */ });
-					});
+					}).catch(() => { /* ignore */ });
 				}
 			}));
 
