@@ -417,8 +417,6 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
-	private _lastErrorNotificationConnection: IMcpServerConnection | undefined;
-	private _lastErrorNotificationState: McpConnectionState.Kind | undefined;
 	private _isQuietStart = false;
 	private _isSandboxSuggestionDialogVisible = false;
 	private _potentialSandboxBlocks: IMcpPotentialSandboxBlock[] = [];
@@ -501,26 +499,6 @@ export class McpServer extends Disposable implements IMcpServer {
 			} else if (this._tools) {
 				this.resetLiveData();
 			}
-		}));
-
-		this._register(autorun(reader => {
-			const cnx = this._connection.read(reader);
-			const state = cnx?.state.read(reader);
-
-			if (cnx && state?.state === McpConnectionState.Kind.Error) {
-				const transitionedToError = this._lastErrorNotificationConnection !== cnx
-					|| this._lastErrorNotificationState !== McpConnectionState.Kind.Error;
-				if (transitionedToError) {
-					if (!this._isQuietStart) {
-						this.showInteractiveError(cnx, state, this._lastModeDebugged);
-					} else {
-						throw new UserInteractionRequiredError('start');
-					}
-				}
-			}
-
-			this._lastErrorNotificationConnection = cnx;
-			this._lastErrorNotificationState = state?.state;
 		}));
 
 		this._register(autorun(reader => {
@@ -713,6 +691,23 @@ export class McpServer extends Disposable implements IMcpServer {
 
 						if (!McpConnectionState.isRunning(s)) {
 							resolve(s);
+						}
+					});
+				}).finally(() => disposable.dispose());
+			}
+
+			if (state.state === McpConnectionState.Kind.Error) {
+				let disposable: IDisposable;
+				state = await new Promise<McpConnectionState>((resolve, reject) => {
+					disposable = autorun(reader => {
+						const cnx = this._connection.read(reader);
+						const state = cnx?.state.read(reader);
+						if (cnx && state?.state === McpConnectionState.Kind.Error) {
+							if (!this._isQuietStart) {
+								this.showInteractiveError(cnx, state, this._lastModeDebugged);
+							} else {
+								reject(new UserInteractionRequiredError('start'));
+							}
 						}
 					});
 				}).finally(() => disposable.dispose());
