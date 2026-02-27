@@ -68,23 +68,57 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 		timeout: 0,
 	});
 
-	// Wait for the sessions window
+	console.log('[e2e] Electron process launched');
+
+	// Log all windows as they appear
+	electron.on('window', (win: playwright.Page) => {
+		console.log(`[e2e] New window detected: ${win.url()}`);
+	});
+
+	// Wait for the first window
 	let page = electron.windows()[0];
 	if (!page) {
+		console.log('[e2e] No windows yet, waiting for first window…');
 		page = await electron.waitForEvent('window', { timeout: 0 });
 	}
+	console.log(`[e2e] First window URL: ${page.url()}`);
 
 	await page.waitForLoadState('domcontentloaded');
+	console.log('[e2e] DOM content loaded');
+
+	// Log console output from the page
+	page.on('console', msg => {
+		if (msg.type() === 'error') {
+			console.log(`[e2e][console.error] ${msg.text()}`);
+		}
+	});
+
+	// Wait a moment for additional windows (sessions may open as 2nd window)
+	await page.waitForTimeout(3_000);
 
 	// If multiple windows, find the sessions one
 	const allWindows = electron.windows();
+	console.log(`[e2e] Total windows: ${allWindows.length}`);
+	for (const [i, win] of allWindows.entries()) {
+		console.log(`[e2e]   window[${i}]: ${win.url()}`);
+	}
+
 	for (const win of allWindows) {
 		if (win.url().includes('sessions')) {
 			page = win;
 			await page.waitForLoadState('domcontentloaded');
+			console.log(`[e2e] Switched to sessions window: ${page.url()}`);
 			break;
 		}
 	}
+
+	// Check what's on the page
+	const title = await page.title();
+	console.log(`[e2e] Page title: "${title}"`);
+	const hasSessionsWB = await page.locator('.agent-sessions-workbench').count();
+	const hasMonacoWB = await page.locator('.monaco-workbench').count();
+	const hasWelcome = await page.locator('.sessions-welcome-overlay').count();
+	console.log(`[e2e] .agent-sessions-workbench: ${hasSessionsWB}, .monaco-workbench: ${hasMonacoWB}, .sessions-welcome-overlay: ${hasWelcome}`);
 
 	return {
 		page,
