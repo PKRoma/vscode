@@ -549,7 +549,9 @@ export class ChangesViewPane extends ViewPane {
 			// Cache the GitHub auth token for use in menu args
 			let cachedGitHubToken: string | undefined;
 
-			// Check if a PR exists when the active session changes
+			// Check if a PR exists when the active session changes.
+			// Guard against stale runs: if the session changes before getSessions resolves,
+			// the run id will have incremented and we skip the outdated callback.
 			let checkPRRunId = 0;
 			this.renderDisposables.add(autorun(reader => {
 				const sessionResource = activeSessionResource.read(reader);
