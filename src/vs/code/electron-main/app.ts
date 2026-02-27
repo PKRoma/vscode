@@ -13,7 +13,7 @@ import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
 import { parse } from '../../base/common/jsonc.js';
 import { getPathLabel } from '../../base/common/labels.js';
-import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
 import { join, posix } from '../../base/common/path.js';
 import { INodeProcess, IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
@@ -1552,7 +1552,15 @@ export class CodeApplication extends Disposable {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
-				Event.once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
+
+				// Do not explicitly release the mutex during shutdown. The OS
+				// will release it when the process exits. Releasing it earlier
+				// (on `onWillShutdown`) causes a race where the Inno Setup
+				// installer proceeds while VS Code is still cleaning up,
+				// before `doQuitAndInstall()` has deleted the update flag file.
+				// Keep a reference to prevent GC from collecting the mutex
+				// (and closing the handle) before process exit.
+				this._register(toDisposable(() => mutex.release()));
 			} catch (error) {
 				this.logService.error(error);
 			}
