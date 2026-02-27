@@ -35,8 +35,12 @@ export async function getSession(): Promise<AuthenticationSession> {
 }
 
 export async function getOctokitSilentFirst(): Promise<Octokit> {
-	const session = await authentication.getSession('github', scopes, { silent: true })
-		?? await authentication.getSession('github', scopes, { createIfNone: true });
+	console.log('[GitHub Auth] getOctokitSilentFirst: attempting silent auth...');
+	const silentSession = await authentication.getSession('github', scopes, { silent: true });
+	console.log('[GitHub Auth] getOctokitSilentFirst: silent auth result:', silentSession ? 'session found' : 'no session');
+
+	const session = silentSession
+		?? await (console.log('[GitHub Auth] getOctokitSilentFirst: falling back to createIfNone...'), authentication.getSession('github', scopes, { createIfNone: true }));
 
 	const token = session.accessToken;
 	const agent = getAgent();

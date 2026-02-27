@@ -98,7 +98,9 @@ async function checkOpenPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri
 	}
 
 	try {
+		console.log('[GitHub] checkOpenPullRequest: fetching octokit...');
 		const octokit = await getOctokitSilentFirst();
+		console.log('[GitHub] checkOpenPullRequest: got octokit, listing PRs...');
 		const { data: openPRs } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
 			repo: resolved.remoteInfo.repo,
@@ -153,7 +155,9 @@ async function openPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | un
 	}
 
 	try {
+		console.log('[GitHub] openPullRequest: fetching octokit...');
 		const octokit = await getOctokitSilentFirst();
+		console.log('[GitHub] openPullRequest: got octokit, listing PRs...');
 		const { data: pullRequests } = await octokit.pulls.list({
 			owner: resolved.remoteInfo.owner,
 			repo: resolved.remoteInfo.repo,
