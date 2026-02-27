@@ -15,7 +15,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { getFlatActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -43,12 +43,6 @@ export interface IModePickerDelegate {
 	 * Custom agents without a target are always shown in all session types. If no agents match the target, shows a default "Agent" option.
 	 */
 	readonly customAgentTarget?: () => Target;
-	/**
-	 * When provided, mode changes are applied directly via this callback
-	 * instead of going through the {@link ToggleAgentModeActionId} command.
-	 * This is useful for contexts where no chat widget exists yet (e.g. new-session views).
-	 */
-	readonly setMode?: (mode: IChatMode) => void;
 }
 
 // TODO: there should be an icon contributed for built-in modes
@@ -63,7 +57,7 @@ const builtinDefaultIcon = (mode: IChatMode) => {
 
 export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	constructor(
-		action: IAction,
+		action: MenuItemAction,
 		private readonly delegate: IModePickerDelegate,
 		pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
@@ -142,17 +136,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					if (isDisabledViaPolicy) {
 						return; // Block interaction if disabled by policy
 					}
-					if (this.delegate.setMode) {
-						this.delegate.setMode(mode);
-					} else {
-						await commandService.executeCommand(
-							ToggleAgentModeActionId,
-							{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
-						);
-					}
+					const result = await commandService.executeCommand(
+						ToggleAgentModeActionId,
+						{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
+					);
 					if (this.element) {
 						this.renderLabel(this.element);
 					}
+					return result;
 				},
 				category: isDisabledViaPolicy ? policyDisabledCategory : builtInCategory
 			};

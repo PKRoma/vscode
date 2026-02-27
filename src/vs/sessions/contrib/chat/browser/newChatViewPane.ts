@@ -40,13 +40,10 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
-import { IModePickerDelegate, ModePickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
-import { ChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -63,6 +60,7 @@ import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
+import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 
@@ -100,9 +98,7 @@ class NewChatWidget extends Disposable {
 	private _editor!: CodeEditorWidget;
 	private _editorContainer!: HTMLElement;
 	private readonly _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentLanguageModel', undefined);
-	private readonly _currentMode = observableValue<IChatMode>('currentMode', ChatMode.Agent);
 	private readonly _modelPickerDisposable = this._register(new MutableDisposable());
-	private readonly _modePickerDisposable = this._register(new MutableDisposable());
 
 	// Pending session
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
@@ -125,13 +121,13 @@ class NewChatWidget extends Disposable {
 	private _extensionPickersLeftContainer: HTMLElement | undefined;
 	private _toolbarPickersContainer: HTMLElement | undefined;
 	private _localModelPickerContainer: HTMLElement | undefined;
-	private _localModePickerContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
 	private readonly _folderPicker: FolderPicker;
 	private _folderPickerContainer: HTMLElement | undefined;
 	private readonly _repoPicker: RepoPicker;
 	private _repoPickerContainer: HTMLElement | undefined;
 	private readonly _cloudModelPicker: CloudModelPicker;
+	private readonly _modePicker: ModePicker;
 	private readonly _toolbarPickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
 	private readonly _toolbarPickerDisposables = this._register(new DisposableStore());
 	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
@@ -157,13 +153,13 @@ class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
+		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
 		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, options.defaultTarget));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
@@ -195,6 +191,12 @@ class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._isolationModePicker.onDidChange(() => {
+			this._focusEditor();
+		}));
+
+		// When mode changes, update the session
+		this._register(this._modePicker.onDidChange((mode) => {
+			this._newSession.value?.setModeId(mode.id);
 			this._focusEditor();
 		}));
 
@@ -305,8 +307,7 @@ class NewChatWidget extends Disposable {
 		}
 
 		// Set the current mode on the session (for local sessions)
-		const currentMode = this._currentMode.get();
-		session.setModeId(currentMode.id);
+		session.setModeId(this._modePicker.selectedMode.id);
 
 		// Open repository for the session's repoUri
 		if (session.repoUri) {
@@ -527,9 +528,9 @@ class NewChatWidget extends Disposable {
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
 
-		// Local mode picker (ModePickerActionItem)
-		this._localModePickerContainer = dom.append(toolbar, dom.$('.sessions-chat-mode-picker'));
-		this._createLocalModePicker(this._localModePickerContainer);
+		// Local mode picker
+		this._modePicker.render(toolbar);
+		this._modePicker.setVisible(false);
 
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
@@ -592,34 +593,6 @@ class NewChatWidget extends Disposable {
 		);
 		this._modelPickerDisposable.value = modelPicker;
 		modelPicker.render(container);
-	}
-
-	// --- Mode picker ---
-
-	private _createLocalModePicker(container: HTMLElement): void {
-		const delegate: IModePickerDelegate = {
-			currentMode: this._currentMode,
-			sessionResource: () => this._newSession.value?.resource,
-			customAgentTarget: () => this.chatSessionsService.getCustomAgentTargetForSessionType(AgentSessionProviders.Background) ?? Target.Undefined,
-			setMode: (mode: IChatMode) => {
-				this._currentMode.set(mode, undefined);
-				this._newSession.value?.setModeId(mode.id);
-				this._focusEditor();
-			},
-		};
-
-		const pickerOptions: IChatInputPickerOptions = {
-			onlyShowIconsForDefaultActions: observableValue('onlyShowIcons', false),
-			hoverPosition: { hoverPosition: HoverPosition.ABOVE },
-		};
-
-		const action = toAction({ id: 'sessions.modePicker', label: '', enabled: true, run: () => { } });
-
-		const modePicker = this.instantiationService.createInstance(
-			ModePickerActionItem, action, delegate, pickerOptions,
-		);
-		this._modePickerDisposable.value = modePicker;
-		modePicker.render(container);
 	}
 
 	private _initDefaultModel(): void {
@@ -688,9 +661,7 @@ class NewChatWidget extends Disposable {
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = '';
 		}
-		if (this._localModePickerContainer) {
-			this._localModePickerContainer.style.display = '';
-		}
+		this._modePicker.setVisible(true);
 		this._cloudModelPicker.setVisible(false);
 	}
 
@@ -710,9 +681,7 @@ class NewChatWidget extends Disposable {
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = 'none';
 		}
-		if (this._localModePickerContainer) {
-			this._localModePickerContainer.style.display = 'none';
-		}
+		this._modePicker.setVisible(false);
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
