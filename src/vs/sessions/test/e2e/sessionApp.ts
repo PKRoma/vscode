@@ -31,7 +31,7 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 		);
 	}
 
-	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sessions-e2e-'));
+	const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sessions-e2e-${Date.now()}-`));
 	const mockExtPath = path.join(__dirname, '..', 'extensions', 'mock-chat-provider');
 
 	const args = [
@@ -45,7 +45,7 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 		`--user-data-dir=${tmpDir}`,
 		`--extensionDevelopmentPath=${mockExtPath}`,
 		'--enable-smoke-test-driver',
-		'--new-window',
+		'--sessions',
 	];
 
 	const electron = await playwright._electron.launch({
