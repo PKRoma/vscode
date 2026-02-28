@@ -172,6 +172,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private _editorContentChanged = false;
 
 	// Folder picker (sessions window only)
+	private folderPickerContainer: HTMLElement | undefined;
 	private folderPickerLabel: HTMLElement | undefined;
 	private folderPickerClearButton: HTMLElement | undefined;
 
@@ -273,7 +274,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.sidebarContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					const listHeight = height - 8;
+					const footerHeight = this.folderPickerContainer?.offsetHeight ?? 0;
+					const listHeight = height - 8 - footerHeight;
 					this.sectionsList.layout(listHeight, width);
 				}
 			},
@@ -367,7 +369,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createFolderPicker(sidebarContent: HTMLElement): void {
-		const footer = DOM.append(sidebarContent, $('.sidebar-folder-picker'));
+		const footer = this.folderPickerContainer = DOM.append(sidebarContent, $('.sidebar-folder-picker'));
 
 		const button = DOM.append(footer, $('button.folder-picker-button'));
 		button.setAttribute('aria-label', localize('browseFolder', "Browse folder"));
@@ -660,7 +662,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	override async setInput(input: AICustomizationManagementEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		// Always start at the session-derived root on (re)open
+		// On (re)open, clear any override so the root comes from the default source
 		this.workspaceService.clearOverrideProjectRoot();
 
 		this.inEditorContextKey.set(true);

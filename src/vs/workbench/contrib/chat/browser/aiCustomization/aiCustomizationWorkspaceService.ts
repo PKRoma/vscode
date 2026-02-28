@@ -64,7 +64,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	readonly isSessionsWindow = false;
 
 	readonly hasOverrideProjectRoot = constObservable(false);
-	setOverrideProjectRoot(): void { }
+	setOverrideProjectRoot(_root: URI): void { }
 	clearOverrideProjectRoot(): void { }
 
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {

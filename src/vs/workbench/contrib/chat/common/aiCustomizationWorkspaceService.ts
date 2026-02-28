@@ -112,7 +112,7 @@ export interface IAICustomizationWorkspaceService {
 	/**
 	 * Sets a transient override for the active project root.
 	 * While set, `activeProjectRoot` returns this value instead of the
-	 * session-derived root. Call `clearOverrideProjectRoot()` to revert.
+	 * session- or workspace-derived root. Call `clearOverrideProjectRoot()` to revert.
 	 */
 	setOverrideProjectRoot(root: URI): void;
 

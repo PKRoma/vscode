@@ -203,6 +203,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
@@ -241,13 +242,16 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const element = entry.item;
 
 		// Hover tooltip: name + full path
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => ({
-			content: `${element.name}\n${element.uri.fsPath}`,
-			appearance: {
-				compact: true,
-				skipFadeInAnimation: true,
-			}
-		})));
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
+			const uriLabel = this.labelService.getUriLabel(element.uri, { relative: false });
+			return {
+				content: `${element.name}\n${uriLabel}`,
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+				}
+			};
+		}));
 
 		// Name with highlights
 		templateData.nameLabel.set(element.name, element.nameMatches);
