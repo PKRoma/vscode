@@ -31,7 +31,7 @@ exports.StepContext = StepContext;
 // Element vocabulary — maps natural-language names to CSS selectors scoped
 // to the agent-sessions workbench.
 // ---------------------------------------------------------------------------
-const WB = '.agent-sessions-workbench';
+const WB = '[data-testid="sessions-workbench"]';
 const ELEMENT_MAP = {
     // Top-level workbench
     'the sessions workbench': WB,
@@ -42,12 +42,17 @@ const ELEMENT_MAP = {
     'the titlebar': `${WB} .part.titlebar`,
     'the auxiliary bar': `${WB} .part.auxiliarybar`,
     'the panel': `${WB} .part.panel`,
-    // Chat
-    'the chat input': `${WB} .sessions-chat-editor .monaco-editor[role="code"], ${WB} .interactive-input-part .monaco-editor[role="code"], ${WB} .chat-input-part .monaco-editor[role="code"], ${WB} .interactive-input-and-side-toolbar .monaco-editor`,
+    // Chat input — stable testid on the editor container, Monaco editor inside
+    'the chat input': `[data-testid="sessions-chat-input"] .monaco-editor`,
     'a chat response': `${WB} .interactive-item-container.interactive-response`,
-    // Repository picker dropdown (shown when submitting without a repo selected)
-    'the repository picker dropdown': `.context-view .action-widget[aria-label*="Repository Picker"], .context-view .action-widget`,
-    'the repo picker': `.context-view .action-widget[aria-label*="Repository Picker"], .context-view .action-widget`,
+    // Session target radio (Local / Cloud)
+    'the target picker': `[data-testid="sessions-target-picker"]`,
+    'the local button': `[data-testid="sessions-target-picker"] .monaco-button:first-child`,
+    'the cloud button': `[data-testid="sessions-target-picker"] .monaco-button:last-child`,
+    // Repository picker trigger & dropdown
+    'the repo picker': `[data-testid="sessions-repo-picker"]`,
+    'the repository picker dropdown': `.context-view .action-widget[aria-label="Repository Picker"]`,
+    'the repository picker': `[data-testid="sessions-repo-picker"]`,
     // AI Customization overview sidebar view
     'the customizations sidebar': `${WB} .part.sidebar [id="workbench.view.aiCustomizationOverview"]`,
     'the customizations overview': `${WB} .overview-sections`,
@@ -216,7 +221,7 @@ const STEP_HANDLERS = [
     {
         pattern: /^press Enter to submit$/i,
         async execute(page) {
-            const chatInput = `${WB} .sessions-chat-editor .monaco-editor[role="code"], ${WB} .interactive-input-part .monaco-editor[role="code"]`;
+            const chatInput = `[data-testid="sessions-chat-input"] .monaco-editor`;
             await page.waitForSelector(chatInput, { state: 'visible', timeout: 10_000 });
             await page.click(chatInput);
             await page.keyboard.press('Enter');

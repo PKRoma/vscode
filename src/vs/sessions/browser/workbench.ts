@@ -510,6 +510,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		]);
 
 		this.mainContainer.classList.add(...workbenchClasses);
+		this.mainContainer.dataset['testid'] = 'sessions-workbench';
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);

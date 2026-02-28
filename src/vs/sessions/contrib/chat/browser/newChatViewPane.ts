@@ -383,6 +383,7 @@ class NewChatWidget extends Disposable {
 
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
+		editorContainer.dataset['testid'] = 'sessions-chat-input';
 		editorContainer.style.height = `${MIN_EDITOR_HEIGHT}px`;
 
 		const uri = URI.from({ scheme: 'sessions-chat', path: `input-${Date.now()}` });

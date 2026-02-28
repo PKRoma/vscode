@@ -93,6 +93,7 @@ export class SessionTargetPicker extends Disposable {
 		});
 		this._renderDisposables.add(radio);
 		this._container.appendChild(radio.domNode);
+		radio.domNode.dataset['testid'] = 'sessions-target-picker';
 
 		if (activeIndex >= 0) {
 			radio.setActiveItem(activeIndex);
