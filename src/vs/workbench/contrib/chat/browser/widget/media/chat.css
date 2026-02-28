@@ -1444,7 +1444,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: transparent;
 }
 
-.action-widget .action-list-filter.chat-model-picker-filter-container {
+.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
 	margin-bottom: 4px;
 }
 
