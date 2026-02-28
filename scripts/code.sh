@@ -64,7 +64,7 @@ function code() {
 	done
 
 	# Launch Code
-	exec "$CODE" . $DISABLE_TEST_EXTENSION "${TRANSIENT_ARGS[@]}" "${REMAINING_ARGS[@]}"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION "${REMAINING_ARGS[@]}" "${TRANSIENT_ARGS[@]}"
 }
 
 function code-wsl()
