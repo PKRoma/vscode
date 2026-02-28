@@ -131,6 +131,9 @@ import { EnhancedModelPickerActionItem } from './modelPickerActionItem2.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
+const INPUT_EDITOR_LINE_HEIGHT = 20;
+const INPUT_EDITOR_PADDING_COMPACT = 2; // top and bottom padding in compact mode
+const INPUT_EDITOR_PADDING_DEFAULT = 8; // top and bottom padding in default mode
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 
 export interface IChatInputStyles {
@@ -562,7 +565,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, this._attachmentModel, styles));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
-		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * 20 + (this.options.renderStyle === 'compact' ? 4 : 16) : undefined; // lineHeight is 20, padding is top+bottom
+		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + (this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING_COMPACT * 2 : INPUT_EDITOR_PADDING_DEFAULT * 2) : undefined;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
@@ -2053,8 +2056,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
-		options.lineHeight = 20;
-		options.padding = this.options.renderStyle === 'compact' ? { top: 2, bottom: 2 } : { top: 8, bottom: 8 };
+		options.lineHeight = INPUT_EDITOR_LINE_HEIGHT;
+		options.padding = this.options.renderStyle === 'compact' ? { top: INPUT_EDITOR_PADDING_COMPACT, bottom: INPUT_EDITOR_PADDING_COMPACT } : { top: INPUT_EDITOR_PADDING_DEFAULT, bottom: INPUT_EDITOR_PADDING_DEFAULT };
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
