@@ -201,6 +201,10 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
 	readonly templateId = 'aiCustomizationItem';
 
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
@@ -235,6 +239,15 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const element = entry.item;
+
+		// Hover tooltip: name + full path
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => ({
+			content: `${element.name}\n${element.uri.fsPath}`,
+			appearance: {
+				compact: true,
+				skipFadeInAnimation: true,
+			}
+		})));
 
 		// Name with highlights
 		templateData.nameLabel.set(element.name, element.nameMatches);
