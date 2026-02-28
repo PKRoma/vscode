@@ -600,6 +600,10 @@ export class ModelPickerWidget extends Disposable {
 		const activeElement = dom.getActiveElement();
 		if (dom.isHTMLInputElement(activeElement) && activeElement.classList.contains('action-list-filter-input')) {
 			activeElement.classList.add('chat-model-picker-filter-input');
+			const filterContainer = activeElement.closest('.action-list-filter');
+			if (dom.isHTMLElement(filterContainer)) {
+				filterContainer.classList.add('chat-model-picker-filter-container');
+			}
 		}
 	}
 
