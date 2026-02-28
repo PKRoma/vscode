@@ -2,30 +2,60 @@
 
 Natural-language Playwright tests for the Agent Sessions window.
 
-## How it Works
+## Architecture
 
-1. **Scenarios** are written in markdown under `scenarios/`. Each `.scenario.md` file
-   describes a test using plain English steps (e.g., "verify the sidebar is visible").
-2. **The action map** (`actionMap.ts`) translates each step into a Playwright operation
-   against the sessions window DOM.
-3. **A mock chat extension** (`extensions/mock-chat-provider/`) is loaded into VS Code
-   so chat input works without needing a real LLM.
-4. **The test runner** (`scenarios.spec.ts`) discovers all scenario files, creates
-   test cases for each step, and runs them sequentially.
+```
+e2e/
+├── scenarios/               # Plain-English test scenarios (*.scenario.md)
+│   └── 01-repo-picker-on-submit.scenario.md
+├── extensions/
+│   └── mock-chat-provider/  # VS Code extension that provides a fake GitHub
+│                            # auth session + chat participant (no real LLM)
+├── actionMap.ts             # Maps natural-language steps → Playwright calls
+├── scenarioParser.ts        # Parses *.scenario.md files into step arrays
+├── scenarios.spec.ts        # Test runner: discovers scenarios, runs steps
+├── sessionApp.ts            # Launches VS Code via CDP and returns a Page handle
+├── tsconfig.json            # TypeScript config (compiles to out/)
+└── out/                     # Compiled JS (git-ignored)
+```
+
+### How a Test Runs
+
+1. `sessionApp.ts` spawns the VS Code Electron binary with:
+   - `--sessions` — opens the Agent Sessions window instead of the normal workbench
+   - `--skip-sessions-welcome` — bypasses the sign-in overlay
+   - `--extensionDevelopmentPath=extensions/mock-chat-provider` — injects the mock auth/chat
+   - `--remote-debugging-port=<N>` — exposes CDP for Playwright to connect
+   - A fresh temporary `--user-data-dir` per run
+2. Playwright connects over CDP and finds the sessions workbench page.
+3. `scenarioParser.ts` reads every `*.scenario.md` under `scenarios/` and extracts the
+   `## Steps` bullet list.
+4. For each step bullet, `actionMap.ts` matches it against a list of regex handlers and
+   executes the corresponding Playwright action.
+5. Results are printed with ✅/❌ per step. Failed steps capture a screenshot to
+   `failure-step<N>.png` in the `e2e/` folder.
+
+### Stable Selectors (`data-testid`)
+
+Elements in the Sessions UI use `data-testid` attributes so tests don't break when CSS
+class names change. The root workbench element is `[data-testid="sessions-workbench"]`.
+When adding new UI elements to the Sessions window, add a corresponding `data-testid`
+and register the element in the `ELEMENT_MAP` in `actionMap.ts`.
 
 ## Prerequisites
 
-- VS Code compiled: `out/` directory must exist at the repo root (run
-  `./scripts/code.sh` from the repo root once).
-- Correct Electron downloaded (happens automatically during `./scripts/code.sh`).
-- Root `node_modules` installed (`npm install` from repo root).
+- VS Code compiled: `out/` must exist at the repo root.
+  ```bash
+  nvm use && npm i && ./scripts/code.sh   # first time only
+  ```
+- Root `node_modules` installed (the step above handles this).
 
 ## Running
 
 ```bash
 cd src/vs/sessions/test/e2e
-node ../../../../../node_modules/typescript/bin/tsc
-node out/scenarios.spec.js
+node ../../../../../node_modules/typescript/bin/tsc   # compile
+node out/scenarios.spec.js                            # run
 ```
 
 ### Environment Variables
@@ -35,10 +65,10 @@ node out/scenarios.spec.js
 | `SESSIONS_E2E_ROOT` | Override the VS Code repo root (defaults to auto-detected) |
 | `SESSIONS_E2E_ELECTRON_PATH` | Override the Electron binary path |
 
-Example with overrides:
+Example:
 
 ```bash
-SESSIONS_E2E_ROOT=/path/to/vscode SESSIONS_E2E_ELECTRON_PATH=/path/to/electron node out/scenarios.spec.js
+SESSIONS_E2E_ROOT=/path/to/vscode node out/scenarios.spec.js
 ```
 
 ## Writing a Scenario
@@ -48,7 +78,7 @@ Create a `*.scenario.md` in `scenarios/`:
 ```markdown
 # My Scenario Name
 
-Description of what this tests.
+Short description of what this scenario tests.
 
 ## Steps
 
@@ -59,14 +89,17 @@ Description of what this tests.
 - verify a chat response appears
 ```
 
+The `## Steps` section is the only required section. An optional `## Preconditions`
+section (bullet list) is parsed and printed before the steps run, but not executed.
+
 ### Supported Steps
 
 | Pattern | Action |
 |---------|--------|
-| `wait for <element> to load` | Wait for element to be visible (30s) |
+| `wait for <element> to load` | Wait for element to be visible (30 s) |
 | `wait <N> seconds` | Explicit wait |
-| `verify <element> is visible` | Assert element is visible (10s) |
-| `verify <element> is not visible` | Assert element is hidden (10s) |
+| `verify <element> is visible` | Assert element is visible (10 s) |
+| `verify <element> is not visible` | Assert element is hidden (10 s) |
 | `verify <element> has text "<text>"` | Assert element contains text |
 | `verify <element> text contains "<text>"` | Assert element text includes substring |
 | `verify text "<text>" appears on the page` | Assert text visible anywhere on page |
@@ -78,6 +111,7 @@ Description of what this tests.
 | `set <varName> to "<value>"` | Set a variable for later steps |
 | `type "<text>" in <element>` | Focus element and type text |
 | `press <key>` | Press a keyboard key |
+| `press Enter to submit` | Press Enter inside the chat input |
 | `click <element>` | Click an element |
 | `click button "<text>"` | Click button by visible text |
 | `click menu item "<text>"` | Click menu item by visible text |
@@ -88,7 +122,7 @@ Description of what this tests.
 
 ### Variables
 
-Steps can use `<varName>` placeholders that get replaced at runtime:
+Steps can use `<varName>` placeholders replaced at runtime:
 
 ```markdown
 - set name to "my-instruction"
@@ -98,10 +132,15 @@ Steps can use `<varName>` placeholders that get replaced at runtime:
 
 ### Known Elements
 
-**Workbench parts:** `the sessions workbench`, `the sidebar`, `the chat bar`,
-`the titlebar`, `the auxiliary bar`, `the panel`
+**Workbench parts:** `the sessions workbench`, `the workbench`, `the sidebar`,
+`the chat bar`, `the titlebar`, `the auxiliary bar`, `the panel`
 
 **Chat:** `the chat input`, `a chat response`
+
+**Session target (Local / Cloud):** `the target picker`, `the local button`,
+`the cloud button`
+
+**Repository:** `the repo picker`, `the repository picker`, `the repository picker dropdown`
 
 **AI Customization overview:** `the customizations sidebar`,
 `the customizations overview`, `the agents section`, `the skills section`,
@@ -124,5 +163,8 @@ Add a new `StepHandler` entry to the `STEP_HANDLERS` array in `actionMap.ts`.
 
 ## Adding New Elements
 
-Add a new entry to the `ELEMENT_MAP` in `actionMap.ts` mapping a natural-language
-name to a CSS selector scoped to `.agent-sessions-workbench`.
+1. Add a `data-testid="<your-id>"` attribute to the element in the Sessions UI source.
+2. Add a new entry to the `ELEMENT_MAP` in `actionMap.ts`:
+   ```ts
+   'the my new element': `[data-testid="my-id"]`,
+   ```
