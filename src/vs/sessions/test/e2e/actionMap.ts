@@ -60,7 +60,7 @@ const ELEMENT_MAP: Record<string, string> = {
 
 	// Repository picker trigger & dropdown
 	'the repo picker': `[data-testid="sessions-repo-picker"]`,
-	'the repository picker dropdown': `.context-view .action-widget[aria-label="Repository Picker"]`,
+	'the repository picker dropdown': `.action-widget`,
 	'the repository picker': `[data-testid="sessions-repo-picker"]`,
 
 	// AI Customization overview sidebar view
