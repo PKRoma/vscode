@@ -48,8 +48,23 @@ function code() {
 		DISABLE_TEST_EXTENSION=""
 	fi
 
+	# Transient: use random user data and extensions dir
+	local TRANSIENT_ARGS=()
+	local REMAINING_ARGS=()
+	for arg in "$@"; do
+		if [[ "$arg" == "--transient" ]]; then
+			local TRANSIENT_DIR=$(node -e "const p = require('path'), os = require('os'), c = require('crypto'); console.log(p.join(os.tmpdir(), 'vscode-' + c.randomBytes(4).toString('hex')))")
+			local USER_DATA_DIR="$TRANSIENT_DIR/data"
+			local EXTENSIONS_DIR="$TRANSIENT_DIR/extensions"
+			TRANSIENT_ARGS=(--user-data-dir "$USER_DATA_DIR" --extensions-dir "$EXTENSIONS_DIR")
+			echo "State is temporarily stored. Relaunch this state with: scripts/code.sh --user-data-dir \"$USER_DATA_DIR\" --extensions-dir \"$EXTENSIONS_DIR\""
+		else
+			REMAINING_ARGS+=("$arg")
+		fi
+	done
+
 	# Launch Code
-	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION "${TRANSIENT_ARGS[@]}" "${REMAINING_ARGS[@]}"
 }
 
 function code-wsl()
