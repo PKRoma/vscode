@@ -102,27 +102,28 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		const cts = new CancellationTokenSource();
 		this._activeNotifications.set(sessionResource, toDisposable(() => cts.dispose(true)));
 
-		// Determine if the pending input is for a question carousel
-		const isQuestionCarousel = this._isQuestionCarouselPending(sessionResource);
-
+		const isQuestion = this._isQuestionPending(sessionResource);
 		try {
-			const actionLabel = isQuestionCarousel
+			const actionLabel = isQuestion
 				? localize('openChatAction', "Open Chat")
 				: localize('allowAction', "Allow");
 
 			const result = await this._hostService.showToast({
 				title: this._sanitizeOSToastText(notificationTitle),
-				body: this._getNotificationBody(sessionResource, info, isQuestionCarousel),
+				body: this._getNotificationBody(sessionResource, info, isQuestion),
 				actions: [actionLabel],
 			}, cts.token);
 
 			if (result.clicked || typeof result.actionIndex === 'number') {
-				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
+				const clickedAllow = result.actionIndex === 0 && !isQuestion;
+				if (!clickedAllow || !targetWindow.document.hasFocus()) { // do not focus when user clicked "Allow" and the window is already focused
+					await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 
-				const widget = await this._chatWidgetService.openSession(sessionResource);
-				widget?.focusInput();
+					const widget = await this._chatWidgetService.openSession(sessionResource);
+					widget?.focusInput();
+				}
 
-				if (result.actionIndex === 0 && !isQuestionCarousel) {
+				if (clickedAllow) {
 					await this._commandService.executeCommand(AcceptToolConfirmationActionId, { sessionResource } satisfies IToolConfirmationActionContext);
 				}
 			}
@@ -131,10 +132,10 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		}
 	}
 
-	private _getNotificationBody(sessionResource: URI, info: IChatRequestNeedsInputInfo, isQuestionCarousel: boolean): string {
+	private _getNotificationBody(sessionResource: URI, info: IChatRequestNeedsInputInfo, isQuestion: boolean): string {
 		const terminalCommand = this._getPendingTerminalCommand(sessionResource);
-		if (isQuestionCarousel) {
-			return localize('questionCarouselDetail', "Questions need your input.");
+		if (isQuestion) {
+			return localize('questionDetail', "Questions need your input.");
 		}
 		if (isMacintosh && terminalCommand) {
 			return this._sanitizeOSToastText(terminalCommand); // prefer full command on macOS where you can approve from the toast
@@ -160,7 +161,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		return undefined;
 	}
 
-	private _isQuestionCarouselPending(sessionResource: URI): boolean {
+	private _isQuestionPending(sessionResource: URI): boolean {
 		const model = this._chatService.getSession(sessionResource);
 		const lastResponse = model?.lastRequest?.response;
 		if (!lastResponse) {
