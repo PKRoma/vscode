@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
-import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown, IButton, IButtonOptions, IButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { Action, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -34,6 +34,7 @@ export interface IChatConfirmationButton<T> {
 	disabled?: boolean;
 	readonly onDidChangeDisablement?: Event<boolean>;
 	moreActions?: (IChatConfirmationButton<T> | Separator)[];
+	styles?: Partial<IButtonStyles>;
 }
 
 export interface IChatConfirmationWidgetOptions<T> {
@@ -157,7 +158,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 		// Create buttons
 		buttons.forEach(buttonData => {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, ...buttonData.styles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
 			if (buttonData.moreActions) {
@@ -350,7 +351,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			this._buttonsDomNode.children[0].remove();
 		}
 		for (const buttonData of buttons) {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, ...buttonData.styles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
 			if (buttonData.moreActions) {

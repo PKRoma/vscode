@@ -10,6 +10,8 @@ import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { asCssVariable } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { editorWarningForeground } from '../../../../../../../platform/theme/common/colors/editorColors.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -80,41 +82,42 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 			const additionalActions = this.additionalPrimaryActions();
 
-			// find session scoped action
+			// find session scoped action to surface as its own button
 			const sessionAction = additionalActions.find(
 				(action): action is IAbstractToolPrimaryAction => 'scope' in action && action.scope === 'session'
 			);
 
-			// regular allow action
-			const allowAction: IAbstractToolPrimaryAction = {
-				label: config.allowLabel,
-				tooltip: allowTooltip,
-				data: () => { this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction }); },
-			};
-
-			const primaryAction = sessionAction ?? allowAction;
-
-			// rebuild additional list with allow action
-			const moreActions = sessionAction
-				? [allowAction, ...additionalActions.filter(a => a !== sessionAction)]
-				: additionalActions;
+			// remaining actions (excluding session) go in allow-once dropdown
+			const moreActions = additionalActions.filter(a => a !== sessionAction);
 
 			buttons = [
 				{
-					label: primaryAction.label,
-					tooltip: primaryAction.tooltip,
-					data: primaryAction.data,
+					label: config.allowLabel,
+					tooltip: allowTooltip,
+					data: () => { this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction }); },
 					moreActions: moreActions.length > 0 ? moreActions : undefined,
 				},
-				{
-					label: localize('skip', "Skip"),
-					tooltip: skipTooltip,
-					data: () => {
-						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped });
-					},
-					isSecondary: true,
-				}
 			];
+
+			// surface session action as a separate button with warning styling
+			if (sessionAction) {
+				buttons.push({
+					label: sessionAction.label,
+					tooltip: sessionAction.tooltip,
+					data: sessionAction.data,
+					isSecondary: true,
+					styles: { buttonSecondaryForeground: asCssVariable(editorWarningForeground), buttonSecondaryBorder: asCssVariable(editorWarningForeground) },
+				});
+			}
+
+			buttons.push({
+				label: localize('skip', "Skip"),
+				tooltip: skipTooltip,
+				data: () => {
+					this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped });
+				},
+				isSecondary: true,
+			});
 		}
 
 		const contentElement = this.createContentElement();
