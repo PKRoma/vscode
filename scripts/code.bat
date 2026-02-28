@@ -39,7 +39,7 @@ set REMAINING_ARGS=
 setlocal enabledelayedexpansion
 for %%A in (%*) do (
 	if "%%~A"=="--transient" (
-		for /f "usebackq" %%B in (`node -e "const p=require('path'),os=require('os'),c=require('crypto');console.log(p.join(os.tmpdir(),'vscode-'+c.randomBytes(4).toString('hex')))"`) do set "TRANSIENT_DIR=%%B"
+		for /f "usebackq delims=" %%B in (`node -e "const p=require('path'),os=require('os'),c=require('crypto');console.log(p.join(os.tmpdir(),'vscode-'+c.randomBytes(4).toString('hex')))"`) do set "TRANSIENT_DIR=%%B"
 		set "TRANSIENT_ARGS=--user-data-dir "!TRANSIENT_DIR!\data" --extensions-dir "!TRANSIENT_DIR!\extensions""
 		echo State is temporarily stored. Relaunch this state with: scripts\code.bat --user-data-dir "!TRANSIENT_DIR!\data" --extensions-dir "!TRANSIENT_DIR!\extensions"
 	) else (
