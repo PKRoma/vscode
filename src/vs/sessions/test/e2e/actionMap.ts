@@ -304,7 +304,8 @@ const STEP_HANDLERS: StepHandler[] = [
 		pattern: /^click button "(.+?)"$/i,
 		async execute(page, match, ctx) {
 			const text = ctx.interpolate(match[1]);
-			await page.getByRole('button', { name: text }).first().click({ timeout: 10_000 });
+			// Use force:true to click through any overlay (e.g. context-view-pointerBlock left over from a previous scenario)
+			await page.getByRole('button', { name: text }).first().click({ timeout: 10_000, force: true });
 		},
 	},
 	// click menu item "<text>"
@@ -371,6 +372,37 @@ const STEP_HANDLERS: StepHandler[] = [
 		pattern: /^set (\w+) to "(.+?)"$/i,
 		async execute(_page, match, ctx) {
 			ctx.set(match[1], match[2]);
+		},
+	},
+
+	// ------ Button enabled / disabled state ------
+
+	// verify the "<label>" button is enabled
+	{
+		pattern: /^verify the? "(.+?)" button is enabled$/i,
+		async execute(page, match, ctx) {
+			const label = ctx.interpolate(match[1]);
+			const btn = page.getByRole('button', { name: label }).first();
+			await btn.waitFor({ state: 'visible', timeout: 10_000 });
+			const ariaDisabled = await btn.getAttribute('aria-disabled');
+			const disabled = await btn.isDisabled();
+			if (ariaDisabled === 'true' || disabled) {
+				throw new Error(`Expected button "${label}" to be enabled but it is disabled`);
+			}
+		},
+	},
+	// verify the "<label>" button is disabled
+	{
+		pattern: /^verify the? "(.+?)" button is disabled$/i,
+		async execute(page, match, ctx) {
+			const label = ctx.interpolate(match[1]);
+			const btn = page.getByRole('button', { name: label }).first();
+			await btn.waitFor({ state: 'visible', timeout: 10_000 });
+			const ariaDisabled = await btn.getAttribute('aria-disabled');
+			const disabled = await btn.isDisabled();
+			if (ariaDisabled !== 'true' && !disabled) {
+				throw new Error(`Expected button "${label}" to be disabled but it is enabled`);
+			}
 		},
 	},
 

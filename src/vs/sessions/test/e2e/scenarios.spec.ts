@@ -29,6 +29,10 @@ async function run(): Promise<void> {
 		console.log('Window launched.\n');
 
 		for (const scenario of scenarios) {
+			// Dismiss any open dropdowns/overlays from a previous scenario
+			await app.page.keyboard.press('Escape').catch(() => {/* ignore */});
+			await app.page.waitForTimeout(200);
+
 			console.log(`▶ Scenario: ${scenario.name}`);
 
 			if (scenario.preconditions.length > 0) {
@@ -50,7 +54,7 @@ async function run(): Promise<void> {
 					console.error(`  ❌ ${label}`);
 					console.error(`     ${(err as Error).message}`);
 					// Capture a screenshot to help diagnose failures
-					const screenshotPath = path.join(__dirname, `..`, `failure-step${i + 1}.png`);
+					const screenshotPath = path.join(__dirname, `failure-step${i + 1}.png`);
 					await app.page.screenshot({ path: screenshotPath }).catch(() => {/* ignore */});
 					console.error(`     Screenshot saved: ${screenshotPath}`);
 					failed++;

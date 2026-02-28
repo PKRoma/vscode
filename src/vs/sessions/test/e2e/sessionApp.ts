@@ -67,13 +67,18 @@ export async function launchSessionsWindow(): Promise<SessionApp> {
 
 	// Spawn VS Code as a child process (not via playwright._electron.launch which
 	// hangs because VS Code's main process doesn't respond to Playwright's CDP handshake).
+	// Build a clean env: spread the parent env but explicitly unset
+	// ELECTRON_RUN_AS_NODE (set by the Copilot CLI which itself runs on Electron).
+	// When ELECTRON_RUN_AS_NODE=1 the binary starts in Node mode rather than as
+	// a full Electron application, which breaks the 'electron' built-in imports.
+	const spawnEnv = { ...process.env };
+	delete spawnEnv['ELECTRON_RUN_AS_NODE'];
+	spawnEnv['VSCODE_DEV'] = '1';
+	spawnEnv['VSCODE_CLI'] = '1';
+	spawnEnv['VSCODE_REPOSITORY'] = ROOT;
+
 	const proc = cp.spawn(electronPath, args, {
-		env: {
-			...process.env,
-			VSCODE_DEV: '1',
-			VSCODE_CLI: '1',
-			VSCODE_REPOSITORY: ROOT,
-		},
+		env: spawnEnv,
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
 	proc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[vscode] ${d}`));
