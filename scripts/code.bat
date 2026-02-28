@@ -52,7 +52,7 @@ for %%A in (%*) do (
 )
 
 :: Launch Code
-%CODE% . %DISABLE_TEST_EXTENSION% %TRANSIENT_ARGS% %REMAINING_ARGS%
+%CODE% . %DISABLE_TEST_EXTENSION% %REMAINING_ARGS% %TRANSIENT_ARGS%
 endlocal
 goto end
 
