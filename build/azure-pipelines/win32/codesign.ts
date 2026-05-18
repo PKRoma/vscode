@@ -48,6 +48,21 @@ function findCopilotPrebuiltNodes(rootDir: string): string[] {
 	return results;
 }
 
+// `fs.renameSync` fails with EXDEV when src and dest live on different volumes
+// (the build agent has artifacts on D: but os.tmpdir() is on C:). Fall back to
+// copy + unlink in that case.
+function moveFileCrossDevice(src: string, dest: string): void {
+	try {
+		fs.renameSync(src, dest);
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code !== 'EXDEV') {
+			throw err;
+		}
+		fs.copyFileSync(src, dest);
+		fs.unlinkSync(src);
+	}
+}
+
 function stashCopilotPrebuilts(folders: string[]): Array<{ original: string; stashed: string }> {
 	const stash = path.join(os.tmpdir(), `copilot-prebuilds-${crypto.randomBytes(8).toString('hex')}`);
 	fs.mkdirSync(stash, { recursive: true });
@@ -55,7 +70,7 @@ function stashCopilotPrebuilts(folders: string[]): Array<{ original: string; sta
 	for (const folder of folders) {
 		for (const file of findCopilotPrebuiltNodes(folder)) {
 			const stashed = path.join(stash, crypto.randomBytes(8).toString('hex') + '-' + path.basename(file));
-			fs.renameSync(file, stashed);
+			moveFileCrossDevice(file, stashed);
 			moved.push({ original: file, stashed });
 			console.log(`[codesign] excluded from signing (pre-signed upstream): ${file}`);
 		}
@@ -66,7 +81,7 @@ function stashCopilotPrebuilts(folders: string[]): Array<{ original: string; sta
 function restoreCopilotPrebuilts(moved: Array<{ original: string; stashed: string }>): void {
 	for (const { original, stashed } of moved) {
 		try {
-			fs.renameSync(stashed, original);
+			moveFileCrossDevice(stashed, original);
 		} catch (err) {
 			console.error(`[codesign] failed to restore ${original} from ${stashed}: ${err}`);
 		}
